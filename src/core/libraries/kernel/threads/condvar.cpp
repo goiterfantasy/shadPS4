@@ -122,7 +122,7 @@ int PthreadCond::Wait(PthreadMutexT* mutex, const OrbisKernelTimespec* abstime, 
         void(curthread->wake_sema.try_acquire());
         SleepqUnlock(this);
 
-        //_thr_cancel_enter2(curthread, 0);
+    //_thr_cancel_enter2(curthread, 0);
         int error = curthread->Sleep(abstime, usec) ? 0 : POSIX_ETIMEDOUT;
         //_thr_cancel_leave(curthread, 0);
 
@@ -136,18 +136,25 @@ int PthreadCond::Wait(PthreadMutexT* mutex, const OrbisKernelTimespec* abstime, 
             SleepqUnlock(this);
             curthread->mutex_obj = nullptr;
             mp->CvLock(recurse);
-            return 0;
+        return 0;
         } else if (error == POSIX_ETIMEDOUT) {
             SleepQueue* sq = SleepqLookup(this);
             has_user_waiters = SleepqRemove(sq, curthread);
             break;
-        }
-        UNREACHABLE();
     }
+        UNREACHABLE();
+}
     SleepqUnlock(this);
     curthread->mutex_obj = nullptr;
     mp->CvLock(recurse);
-    return error;
+        return error;
+    }
+
+    //_thr_testcancel(curthread);
+    //_thr_cancel_enter2(curthread, 0);
+    const auto status = cond.wait_for(*mp, std::chrono::microseconds(usec));
+    return status == std::cv_status::timeout ? POSIX_ETIMEDOUT : 0;
+    //_thr_cancel_leave(curthread, 0);
 }
 
 int PS4_SYSV_ABI posix_pthread_cond_wait(PthreadCondT* cond, PthreadMutexT* mutex) {

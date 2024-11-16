@@ -3,9 +3,8 @@
 
 #include <QDockWidget>
 #include <QKeyEvent>
-#include <QPlainTextEdit>
 #include <QProgressDialog>
-#include <SDL3/SDL_events.h>
+#include <QPlainTextEdit>
 
 #include "about_dialog.h"
 #include "cheats_patches.h"
@@ -242,7 +241,6 @@ void MainWindow::CreateConnects() {
     });
 
     connect(ui->playButton, &QPushButton::clicked, this, &MainWindow::StartGame);
-    connect(ui->stopButton, &QPushButton::clicked, this, &MainWindow::StopGame);
     connect(m_game_grid_frame.get(), &QTableWidget::cellDoubleClicked, this,
             &MainWindow::StartGame);
     connect(m_game_list_frame.get(), &QTableWidget::cellDoubleClicked, this,
@@ -265,11 +263,10 @@ void MainWindow::CreateConnects() {
 
         settingsDialog->exec();
     });
-
     // this is the editor for kbm keybinds
     connect(ui->controllerButton, &QPushButton::clicked, this, [this]() {
-        EditorDialog* editorWindow = new EditorDialog(this);
-        editorWindow->exec(); // Show the editor window modally
+        EditorDialog *editorWindow = new EditorDialog(this);
+        editorWindow->exec();  // Show the editor window modally
     });
 
 #ifdef ENABLE_UPDATER
@@ -581,12 +578,6 @@ void MainWindow::StartGame() {
         }
         emulator.Run(path);
     }
-}
-
-void MainWindow::StopGame() {
-    SDL_Event quitEvent;
-    quitEvent.type = SDL_EVENT_QUIT;
-    SDL_PushEvent(&quitEvent);
 }
 
 void MainWindow::SearchGameTable(const QString& text) {
