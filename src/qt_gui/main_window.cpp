@@ -5,7 +5,7 @@
 #include <QKeyEvent>
 #include <QProgressDialog>
 #include <QPlainTextEdit>
-
+#include <SDL3/SDL_events.h>
 #include "about_dialog.h"
 #include "cheats_patches.h"
 #ifdef ENABLE_UPDATER
@@ -241,6 +241,7 @@ void MainWindow::CreateConnects() {
     });
 
     connect(ui->playButton, &QPushButton::clicked, this, &MainWindow::StartGame);
+    connect(ui->stopButton, &QPushButton::clicked, this, &MainWindow::StopGame);
     connect(m_game_grid_frame.get(), &QTableWidget::cellDoubleClicked, this,
             &MainWindow::StartGame);
     connect(m_game_list_frame.get(), &QTableWidget::cellDoubleClicked, this,
@@ -580,6 +581,11 @@ void MainWindow::StartGame() {
     }
 }
 
+void MainWindow::StopGame() {
+    SDL_Event quitEvent;
+    quitEvent.type = SDL_EVENT_QUIT;
+    SDL_PushEvent(&quitEvent);
+}
 void MainWindow::SearchGameTable(const QString& text) {
     if (isTableList) {
         for (int row = 0; row < m_game_list_frame->rowCount(); row++) {
