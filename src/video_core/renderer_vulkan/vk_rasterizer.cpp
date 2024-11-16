@@ -4,6 +4,7 @@
 #include "common/config.h"
 #include "common/debug.h"
 #include "core/memory.h"
+#include "shader_recompiler/runtime_info.h"
 #include "video_core/amdgpu/liverpool.h"
 #include "video_core/renderer_vulkan/vk_instance.h"
 #include "video_core/renderer_vulkan/vk_rasterizer.h"
@@ -48,9 +49,9 @@ void Rasterizer::CpSync() {
 bool Rasterizer::FilterDraw() {
     const auto& regs = liverpool->regs;
     // Tessellation is unsupported so skip the draw to avoid locking up the driver.
-    if (regs.primitive_type == AmdGpu::PrimitiveType::PatchPrimitive) {
-        return false;
-    }
+    //    if (regs.primitive_type == AmdGpu::PrimitiveType::PatchPrimitive) {
+    //        return false;
+    //    }
     // There are several cases (e.g. FCE, FMask/HTile decompression) where we don't need to do an
     // actual draw hence can skip pipeline creation.
     if (regs.color_control.mode == Liverpool::ColorControl::OperationMode::EliminateFastClear) {
@@ -95,7 +96,7 @@ void Rasterizer::Draw(bool is_indexed, u32 index_offset) {
         UNREACHABLE();
     }
 
-    const auto& vs_info = pipeline->GetStage(Shader::Stage::Vertex);
+    const auto& vs_info = pipeline->GetStage(Shader::LogicalStage::Vertex);
     buffer_cache.BindVertexBuffers(vs_info);
     const u32 num_indices = buffer_cache.BindIndexBuffer(is_indexed, index_offset);
 
@@ -138,7 +139,7 @@ void Rasterizer::DrawIndirect(bool is_indexed, VAddr address, u32 offset, u32 si
         UNREACHABLE();
     }
 
-    const auto& vs_info = pipeline->GetStage(Shader::Stage::Vertex);
+    const auto& vs_info = pipeline->GetStage(Shader::LogicalStage::Vertex);
     buffer_cache.BindVertexBuffers(vs_info);
     buffer_cache.BindIndexBuffer(is_indexed, 0);
 
@@ -393,14 +394,12 @@ void Rasterizer::UpdateDynamicState(const GraphicsPipeline& pipeline) {
     if (regs.depth_control.depth_bounds_enable) {
         cmdbuf.setDepthBounds(regs.depth_bounds_min, regs.depth_bounds_max);
     }
-    if (regs.polygon_control.NeedsBias()) {
-        if (regs.polygon_control.enable_polygon_offset_front) {
-            cmdbuf.setDepthBias(regs.poly_offset.front_offset, regs.poly_offset.depth_bias,
-                                regs.poly_offset.front_scale);
-        } else {
-            cmdbuf.setDepthBias(regs.poly_offset.back_offset, regs.poly_offset.depth_bias,
-                                regs.poly_offset.back_scale);
-        }
+    if (regs.polygon_control.enable_polygon_offset_front) {
+        cmdbuf.setDepthBias(regs.poly_offset.front_offset, regs.poly_offset.depth_bias,
+                            regs.poly_offset.front_scale / 16.f);
+    } else if (regs.polygon_control.enable_polygon_offset_back) {
+        cmdbuf.setDepthBias(regs.poly_offset.back_offset, regs.poly_offset.depth_bias,
+                            regs.poly_offset.back_scale / 16.f);
     }
     if (regs.depth_control.stencil_enable) {
         const auto front = regs.stencil_ref_front;
@@ -425,6 +424,11 @@ void Rasterizer::UpdateDynamicState(const GraphicsPipeline& pipeline) {
         } else {
             cmdbuf.setStencilCompareMask(vk::StencilFaceFlagBits::eFront, front.stencil_mask);
             cmdbuf.setStencilCompareMask(vk::StencilFaceFlagBits::eBack, back.stencil_mask);
+        }
+    }
+    if (instance.IsPatchControlPointsDynamicState()) {
+        if (regs.primitive_type == AmdGpu::PrimitiveType::PatchPrimitive) {
+            cmdbuf.setPatchControlPointsEXT(regs.ls_hs_config.hs_input_control_points);
         }
     }
 }
