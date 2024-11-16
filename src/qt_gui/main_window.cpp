@@ -3,9 +3,11 @@
 
 #include <QDockWidget>
 #include <QKeyEvent>
-#include <QProgressDialog>
+
 #include <QPlainTextEdit>
+#include <QProgressDialog>
 #include <SDL3/SDL_events.h>
+
 #include "about_dialog.h"
 #include "cheats_patches.h"
 #ifdef ENABLE_UPDATER
@@ -266,8 +268,8 @@ void MainWindow::CreateConnects() {
     });
     // this is the editor for kbm keybinds
     connect(ui->controllerButton, &QPushButton::clicked, this, [this]() {
-        EditorDialog *editorWindow = new EditorDialog(this);
-        editorWindow->exec();  // Show the editor window modally
+        EditorDialog* editorWindow = new EditorDialog(this);
+        editorWindow->exec(); // Show the editor window modally
     });
 
 #ifdef ENABLE_UPDATER
