@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <atomic>
+
 #include <forward_list>
 #include <list>
 #include <mutex>
