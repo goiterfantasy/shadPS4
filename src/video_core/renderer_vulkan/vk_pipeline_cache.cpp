@@ -413,7 +413,7 @@ bool PipelineCache::RefreshGraphicsKey() {
         }
     }
 
-    // Second pass to fill remain CB pipeline key data
+// Second pass to fill remain CB pipeline key data
     for (auto cb = 0u, remapped_cb = 0u; cb < Liverpool::NumColorBuffers; ++cb) {
         auto const& col_buf = regs.color_buffers[cb];
         if (skip_cb_binding || !col_buf || !regs.color_target_mask.GetMask(cb) ||
@@ -422,17 +422,22 @@ bool PipelineCache::RefreshGraphicsKey() {
             key.mrt_swizzles[cb] = Liverpool::ColorBuffer::SwapMode::Standard;
             continue;
         }
-
         key.blend_controls[remapped_cb] = regs.blend_control[cb];
         key.blend_controls[remapped_cb].enable.Assign(key.blend_controls[remapped_cb].enable &&
                                                       !col_buf.info.blend_bypass);
         key.write_masks[remapped_cb] = vk::ColorComponentFlags{regs.color_target_mask.GetMask(cb)};
         key.cb_shader_mask.SetMask(remapped_cb, regs.color_shader_mask.GetMask(cb));
-
+        num_samples = std::max(num_samples, 1u << col_buf.attrib.num_samples_log2);
         ++remapped_cb;
     }
+
+    // It seems that the number of samples > 1 set in the AA config doesn't mean we're always
+    // rendering with MSAA, so we need to derive MS ratio from the CB settings.
+    num_samples = std::max(num_samples, regs.depth_buffer.NumSamples());
+    key.num_samples = num_samples;
+
     return true;
-} // namespace Vulkan
+}
 
 bool PipelineCache::RefreshComputeKey() {
     Shader::Backend::Bindings binding{};
