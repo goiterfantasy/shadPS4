@@ -309,7 +309,6 @@ int MemoryManager::MapMemory(void** out_addr, VAddr virtual_addr, size_t size, M
     if (type == VMAType::Flexible) {
         flexible_usage += size;
     }
-    MergeAdjacent(vma_map, new_vma_handle);
 
     return ORBIS_OK;
 }
