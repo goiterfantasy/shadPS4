@@ -4,8 +4,7 @@
 #pragma once
 
 #include "common/types.h"
-#include "core/libraries/kernel/event_queues.h"
-
+#include "core/libraries/kernel/equeue.h"
 
 namespace Core::Loader {
 class SymbolsResolver;
@@ -15,7 +14,7 @@ namespace Libraries::GnmDriver {
 
 using namespace Kernel;
 
-s32 PS4_SYSV_ABI sceGnmAddEqEvent(SceKernelEvent eq, u64 id, void* udata);
+s32 PS4_SYSV_ABI sceGnmAddEqEvent(SceKernelEqueue eq, u64 id, void* udata);
 int PS4_SYSV_ABI sceGnmAreSubmitsAllowed();
 int PS4_SYSV_ABI sceGnmBeginWorkload(u32 workload_stream, u64* workload);
 s32 PS4_SYSV_ABI sceGnmComputeWaitOnAddress(u32* cmdbuf, u32 size, uintptr_t addr, u32 mask,
@@ -32,7 +31,7 @@ int PS4_SYSV_ABI sceGnmDebuggerSetAddressWatch();
 int PS4_SYSV_ABI sceGnmDebuggerWriteGds();
 int PS4_SYSV_ABI sceGnmDebuggerWriteSqIndirectRegister();
 int PS4_SYSV_ABI sceGnmDebugHardwareStatus();
-s32 PS4_SYSV_ABI sceGnmDeleteEqEvent(SceKernelEvent eq, u64 id);
+s32 PS4_SYSV_ABI sceGnmDeleteEqEvent(SceKernelEqueue eq, u64 id);
 int PS4_SYSV_ABI sceGnmDestroyWorkloadStream();
 void PS4_SYSV_ABI sceGnmDingDong(u32 gnm_vqid, u32 next_offs_dw);
 int PS4_SYSV_ABI sceGnmDingDongForWorkload();
