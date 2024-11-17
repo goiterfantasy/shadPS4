@@ -3,24 +3,24 @@
 
 #pragma once
 
-#include "core/libraries/kernel/event_queues.h"
+#include "core/libraries/kernel/event_queue.h"
 
 namespace Libraries::Kernel {
 
-using SceKernelUseconds = u32;
-using SceKernelEqueue = EqueueInternal*;
+    using SceKernelUseconds = u32;
+    using SceKernelEqueue = EqueueInternal*;
 
-int PS4_SYSV_ABI sceKernelCreateEqueue(SceKernelEqueue* eq, const char* name);
-int PS4_SYSV_ABI sceKernelDeleteEqueue(SceKernelEqueue eq);
-int PS4_SYSV_ABI sceKernelWaitEqueue(SceKernelEqueue eq, SceKernelEvent* ev, int num, int* out,
-                                     SceKernelUseconds* timo);
-void* PS4_SYSV_ABI sceKernelGetEventUserData(const SceKernelEvent* ev);
-u64 PS4_SYSV_ABI sceKernelGetEventId(const SceKernelEvent* ev);
-int PS4_SYSV_ABI sceKernelTriggerUserEvent(SceKernelEqueue eq, int id, void* udata);
-int PS4_SYSV_ABI sceKernelDeleteUserEvent(SceKernelEqueue eq, int id);
-int PS4_SYSV_ABI sceKernelAddUserEvent(SceKernelEqueue eq, int id);
-int PS4_SYSV_ABI sceKernelAddUserEventEdge(SceKernelEqueue eq, int id);
-s32 PS4_SYSV_ABI sceKernelAddHRTimerEvent(SceKernelEqueue eq, int id, timespec* ts, void* udata);
-s16 PS4_SYSV_ABI sceKernelGetEventFilter(const SceKernelEvent* ev);
+    int PS4_SYSV_ABI sceKernelCreateEqueue(SceKernelEqueue* eq, const char* name);
+    int PS4_SYSV_ABI sceKernelDeleteEqueue(SceKernelEqueue eq);
+    int PS4_SYSV_ABI sceKernelWaitEqueue(SceKernelEqueue eq, SceKernelEvent* ev, int num, int* out,
+        SceKernelUseconds* timo);
+    void* PS4_SYSV_ABI sceKernelGetEventUserData(const SceKernelEvent* ev);
+    u64 PS4_SYSV_ABI sceKernelGetEventId(const SceKernelEvent* ev);
+    int PS4_SYSV_ABI sceKernelTriggerUserEvent(SceKernelEqueue eq, int id, void* udata);
+    int PS4_SYSV_ABI sceKernelDeleteUserEvent(SceKernelEqueue eq, int id);
+    int PS4_SYSV_ABI sceKernelAddUserEvent(SceKernelEqueue eq, int id);
+    int PS4_SYSV_ABI sceKernelAddUserEventEdge(SceKernelEqueue eq, int id);
+    s32 PS4_SYSV_ABI sceKernelAddHRTimerEvent(SceKernelEqueue eq, int id, timespec* ts, void* udata);
+    s16 PS4_SYSV_ABI sceKernelGetEventFilter(const SceKernelEvent* ev);
 
 } // namespace Libraries::Kernel
