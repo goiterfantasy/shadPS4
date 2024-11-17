@@ -413,7 +413,6 @@ bool PipelineCache::RefreshGraphicsKey() {
         }
     }
 
-
     // Second pass to fill remain CB pipeline key data
     for (auto cb = 0u, remapped_cb = 0u; cb < Liverpool::NumColorBuffers; ++cb) {
         auto const& col_buf = regs.color_buffers[cb];
