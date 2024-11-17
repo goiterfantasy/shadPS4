@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "core/libraries/kernel/event_queue.h"
+#include "core/libraries/kernel/event_queues.h"
 
 namespace Libraries::Kernel {
 
