@@ -436,36 +436,36 @@ bool PipelineCache::RefreshGraphicsKey() {
     num_samples = std::max(num_samples, regs.depth_buffer.NumSamples());
     key.num_samples = num_samples;
 
-    return true;
-}
+         return true;
+    }
+    
+    bool PipelineCache::RefreshComputeKey() {
+         Shader::Backend::Bindings binding{};
+         const auto* cs_pgm = &liverpool->regs.cs_program;
+         const auto cs_params = Liverpool::GetParams(*cs_pgm);
+         std::tie(infos[0], modules[0], compute_key) =
+            GetProgram(Stage::Compute, LogicalStage::Compute, cs_params, binding);
+         return true;
+     }
 
-bool PipelineCache::RefreshComputeKey() {
-    Shader::Backend::Bindings binding{};
-    const auto* cs_pgm = &liverpool->regs.cs_program;
-    const auto cs_params = Liverpool::GetParams(*cs_pgm);
-    std::tie(infos[0], modules[0], compute_key) =
-        GetProgram(Stage::Compute, LogicalStage::Compute, cs_params, binding);
-    return true;
-}
-
-vk::ShaderModule PipelineCache::CompileModule(Shader::Info& info, Shader::RuntimeInfo& runtime_info,
+     vk::ShaderModule PipelineCache::CompileModule(Shader::Info& info, Shader::RuntimeInfo& runtime_info,
                                               std::span<const u32> code, size_t perm_idx,
                                               Shader::Backend::Bindings& binding) {
-    LOG_INFO(Render_Vulkan, "Compiling {} shader {:#x} {}", info.stage, info.pgm_hash,
-             perm_idx != 0 ? "(permutation)" : "");
-    DumpShader(code, info.pgm_hash, info.stage, perm_idx, "bin");
+        LOG_INFO(Render_Vulkan, "Compiling {} shader {:#x} {}", info.stage, info.pgm_hash,
+                 perm_idx != 0 ? "(permutation)" : "");
+        DumpShader(code, info.pgm_hash, info.stage, perm_idx, "bin");
 
-    const auto ir_program = Shader::TranslateProgram(code, pools, info, runtime_info, profile);
-    const auto spv = Shader::Backend::SPIRV::EmitSPIRV(profile, runtime_info, ir_program, binding);
-    DumpShader(spv, info.pgm_hash, info.stage, perm_idx, "spv");
+        const auto ir_program = Shader::TranslateProgram(code, pools, info, runtime_info, profile);
+        const auto spv = Shader::Backend::SPIRV::EmitSPIRV(profile, runtime_info, ir_program, binding);
+        DumpShader(spv, info.pgm_hash, info.stage, perm_idx, "spv");
 
-    const auto module = CompileSPV(spv, instance.GetDevice());
-    const auto name = fmt::format("{}_{:#x}_{}", info.stage, info.pgm_hash, perm_idx);
-    Vulkan::SetObjectName(instance.GetDevice(), module, name);
-    return module;
-}
+        const auto module = CompileSPV(spv, instance.GetDevice());
+        const auto name = fmt::format("{}_{:#x}_{}", info.stage, info.pgm_hash, perm_idx);
+        Vulkan::SetObjectName(instance.GetDevice(), module, name);
+        return module;
+     }
 
-PipelineCache::Result PipelineCache::GetProgram(Stage stage, LogicalStage l_stage,
+    PipelineCache::Result PipelineCache::GetProgram(Stage stage, LogicalStage l_stage,
                                                 Shader::ShaderParams params,
                                                 Shader::Backend::Bindings& binding) {
     auto runtime_info = BuildRuntimeInfo(stage, l_stage);
