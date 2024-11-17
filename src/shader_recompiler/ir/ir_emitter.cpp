@@ -1632,4 +1632,3 @@ IR::Inst* IREmitter::CopyInst(const IR::Inst& inst) {
 }
 
 } // namespace Shader::IR
-
