@@ -417,3 +417,9 @@ FodyWeavers.xsd
 
 # JetBrains
 .idea
+
+# flatpak build
+builddir
+.flatpak-builder
+repo
+*.flatpak

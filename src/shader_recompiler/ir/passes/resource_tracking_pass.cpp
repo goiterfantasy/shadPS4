@@ -8,6 +8,7 @@
 #include "shader_recompiler/ir/breadth_first_search.h"
 #include "shader_recompiler/ir/ir_emitter.h"
 #include "shader_recompiler/ir/program.h"
+#include "video_core/amdgpu/pixel_format.h"
 #include "video_core/amdgpu/resource.h"
 
 namespace Shader::Optimization {
@@ -417,6 +418,66 @@ IR::Value PatchCubeCoord(IR::IREmitter& ir, const IR::Value& s, const IR::Value&
     }
 }
 
+void PatchNormalization(IR::Inst& inst, IR::IREmitter& ir, const AmdGpu::Image& image) {
+    if (!image.NeedsNormalizationPatch()) {
+        return;
+    }
+
+    bool is_signed = image.GetNumberFmt() == AmdGpu::NumberFormat::Snorm;
+    bool is_atomic = IsImageAtomicInstruction(inst);
+    bool is_write = is_atomic || inst.GetOpcode() == IR::Opcode::ImageWrite;
+    int num_components = AmdGpu::NumComponents(image.GetDataFmt());
+
+    IR::F32 multipier = ir.Imm32(is_signed ? 2147483647.0f : 4294967295.0f);
+
+    const auto get_mul_vec = [&]() -> IR::F32 {
+        switch (num_components) {
+        case 1:
+            return multipier;
+        case 2:
+            return IR::F32{ir.CompositeConstruct(multipier, multipier)};
+        case 3:
+            return IR::F32{ir.CompositeConstruct(multipier, multipier, multipier)};
+        case 4:
+            return IR::F32{ir.CompositeConstruct(multipier, multipier, multipier, multipier)};
+        default:
+            UNREACHABLE();
+        }
+    };
+
+    const auto patch_read = [&]() {
+        IR::Value data = IR::Value(ir.CopyInst(inst));
+        if (is_signed) {
+            data = ir.ConvertSToF(32, 32, data);
+        } else {
+            data = ir.ConvertUToF(32, 32, data);
+        }
+
+        data = ir.FPMul(IR::F32(data), get_mul_vec());
+        inst.ReplaceUsesWith(data);
+    };
+
+    if (is_write) {
+        IR::F32 data = IR::F32{inst.Arg(2)};
+        data = ir.FPMul(data, get_mul_vec());
+
+        if (is_signed) {
+            inst.SetArg(2, ir.ConvertFToS(32, data));
+        } else {
+            inst.SetArg(2, ir.ConvertFToU(32, data));
+        }
+
+        // Atomic instructions return the old value, so we need to patch the read.
+        if (is_atomic) {
+            multipier = ir.FPRecip(multipier);
+            patch_read();
+        }
+    } else {
+        multipier = ir.FPRecip(multipier);
+        patch_read();
+    }
+}
+
 void PatchImageSampleInstruction(IR::Block& block, IR::Inst& inst, Info& info,
                                  Descriptors& descriptors, const IR::Inst* producer,
                                  const u32 image_binding, const AmdGpu::Image& image) {
@@ -597,7 +658,9 @@ void PatchImageSampleInstruction(IR::Block& block, IR::Inst& inst, Info& info,
         }
         return ir.ImageSampleImplicitLod(handle, coords, bias, offset, inst_info);
     }();
-    inst.ReplaceUsesWithAndRemove(new_inst);
+    inst.ReplaceUsesWith(new_inst);
+
+    PatchNormalization(*new_inst.Inst(), ir, image);
 }
 
 void PatchImageInstruction(IR::Block& block, IR::Inst& inst, Info& info, Descriptors& descriptors) {
@@ -690,9 +753,9 @@ void PatchImageInstruction(IR::Block& block, IR::Inst& inst, Info& info, Descrip
     IR::Inst* body = inst.Arg(1).InstRecursive();
     const auto [coords, arg] = [&] -> std::pair<IR::Value, IR::Value> {
         switch (image.GetType()) {
-        case AmdGpu::ImageType::Color1D: // x
+        case AmdGpu::ImageType::Color1D: // x, [lod]
             return {body->Arg(0), body->Arg(1)};
-        case AmdGpu::ImageType::Color1DArray: // x, slice
+        case AmdGpu::ImageType::Color1DArray: // x, slice, [lod]
             [[fallthrough]];
         case AmdGpu::ImageType::Color2D: // x, y, [lod]
             [[fallthrough]];
@@ -703,9 +766,9 @@ void PatchImageInstruction(IR::Block& block, IR::Inst& inst, Info& info, Descrip
         case AmdGpu::ImageType::Color2DMsaaArray: // x, y, slice. (sample is passed on different
                                                   // argument)
             [[fallthrough]];
-        case AmdGpu::ImageType::Color3D: // x, y, z
+        case AmdGpu::ImageType::Color3D: // x, y, z, [lod]
             return {ir.CompositeConstruct(body->Arg(0), body->Arg(1), body->Arg(2)), body->Arg(3)};
-        case AmdGpu::ImageType::Cube: // x, y, face
+        case AmdGpu::ImageType::Cube: // x, y, face, [lod]
             return {PatchCubeCoord(ir, body->Arg(0), body->Arg(1), body->Arg(2), is_storage,
                                    inst_info.is_array),
                     body->Arg(3)};
@@ -717,13 +780,15 @@ void PatchImageInstruction(IR::Block& block, IR::Inst& inst, Info& info, Descrip
 
     if (inst_info.has_lod) {
         ASSERT(inst.GetOpcode() == IR::Opcode::ImageFetch);
-        ASSERT(image.GetType() == AmdGpu::ImageType::Color2D ||
-               image.GetType() == AmdGpu::ImageType::Color2DArray);
+        ASSERT(image.GetType() != AmdGpu::ImageType::Color2DMsaa &&
+               image.GetType() != AmdGpu::ImageType::Color2DMsaaArray);
         inst.SetArg(3, arg);
     } else if (image.GetType() == AmdGpu::ImageType::Color2DMsaa ||
                image.GetType() == AmdGpu::ImageType::Color2DMsaaArray) {
         inst.SetArg(4, arg);
     }
+
+    PatchNormalization(inst, ir, image);
 }
 
 void PatchDataRingInstruction(IR::Block& block, IR::Inst& inst, Info& info,

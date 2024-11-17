@@ -1626,4 +1626,10 @@ void IREmitter::EmitPrimitive() {
     Inst(Opcode::EmitPrimitive);
 }
 
+IR::Inst* IREmitter::CopyInst(const IR::Inst& inst) {
+    auto it{block->PrependNewInst(insertion_point, inst)};
+    return &*it;
+}
+
 } // namespace Shader::IR
+
