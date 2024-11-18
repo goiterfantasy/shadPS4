@@ -111,7 +111,8 @@ struct VirtualMemoryArea {
         if (prot != next.prot || type != next.type) {
             return false;
         }
-        if (type != VMAType::Free && (type != VMAType::Direct || phys_base + size != next.phys_base)) {
+        if (type != VMAType::Free &&
+            (type != VMAType::Direct || phys_base + size != next.phys_base)) {
             return false;
         }
         return true;
