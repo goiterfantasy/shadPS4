@@ -226,7 +226,9 @@ const ComputePipeline* PipelineCache::GetComputePipeline() {
 }
 
 bool ShouldSkipShader(u64 shader_hash, const char* shader_type) {
-    static std::vector<u64> skip_hashes = {};
+    static std::vector<u64> skip_hashes = {
+
+    };
     if (std::ranges::contains(skip_hashes, shader_hash)) {
         LOG_WARNING(Render_Vulkan, "Skipped {} shader hash {:#x}.", shader_type, shader_hash);
         return true;
@@ -429,30 +431,21 @@ bool PipelineCache::RefreshGraphicsKey() {
         key.write_masks[remapped_cb] = vk::ColorComponentFlags{regs.color_target_mask.GetMask(cb)};
         key.cb_shader_mask.SetMask(remapped_cb, regs.color_shader_mask.GetMask(cb));
 
-        num_samples = std::max(num_samples, 1u << col_buf.attrib.num_samples_log2);
-
         ++remapped_cb;
     }
-
-    // It seems that the number of samples > 1 set in the AA config doesn't mean we're always
-    // rendering with MSAA, so we need to derive MS ratio from the CB settings.
-    num_samples = std::max(num_samples, regs.depth_buffer.NumSamples());
-    key.num_samples = num_samples;
-
     return true;
-}
+} // namespace Vulkan
 
 bool PipelineCache::RefreshComputeKey() {
     Shader::Backend::Bindings binding{};
     const auto* cs_pgm = &liverpool->regs.cs_program;
     const auto cs_params = Liverpool::GetParams(*cs_pgm);
     std::tie(infos[0], modules[0], compute_key) =
-        GetProgram(Shader::Stage::Compute, cs_params, binding);
+        GetProgram(Stage::Compute, LogicalStage::Compute, cs_params, binding);
     return true;
 }
 
-vk::ShaderModule PipelineCache::CompileModule(Shader::Info& info,
-                                              const Shader::RuntimeInfo& runtime_info,
+vk::ShaderModule PipelineCache::CompileModule(Shader::Info& info, Shader::RuntimeInfo& runtime_info,
                                               std::span<const u32> code, size_t perm_idx,
                                               Shader::Backend::Bindings& binding) {
     LOG_INFO(Render_Vulkan, "Compiling {} shader {:#x} {}", info.stage, info.pgm_hash,
@@ -469,12 +462,13 @@ vk::ShaderModule PipelineCache::CompileModule(Shader::Info& info,
     return module;
 }
 
-std::tuple<const Shader::Info*, vk::ShaderModule, u64> PipelineCache::GetProgram(
-    Shader::Stage stage, Shader::ShaderParams params, Shader::Backend::Bindings& binding) {
-    const auto runtime_info = BuildRuntimeInfo(stage);
+PipelineCache::Result PipelineCache::GetProgram(Stage stage, LogicalStage l_stage,
+                                                Shader::ShaderParams params,
+                                                Shader::Backend::Bindings& binding) {
+    auto runtime_info = BuildRuntimeInfo(stage, l_stage);
     auto [it_pgm, new_program] = program_cache.try_emplace(params.hash);
     if (new_program) {
-        Program* program = program_pool.Create(stage, params);
+        Program* program = program_pool.Create(stage, l_stage, params);
         auto start = binding;
         const auto module = CompileModule(program->info, runtime_info, params.code, 0, binding);
         const auto spec = Shader::StageSpecialization(program->info, runtime_info, start);
@@ -486,13 +480,22 @@ std::tuple<const Shader::Info*, vk::ShaderModule, u64> PipelineCache::GetProgram
     Program* program = it_pgm->second;
     auto& info = program->info;
     info.RefreshFlatBuf();
+    if (l_stage == LogicalStage::TessellationControl || l_stage == LogicalStage::TessellationEval) {
+        Shader::TessellationDataConstantBuffer tess_constants;
+        info.ReadTessConstantBuffer(tess_constants);
+        if (l_stage == LogicalStage::TessellationControl) {
+            runtime_info.hs_info.InitFromTessConstants(tess_constants);
+        } else {
+            runtime_info.vs_info.InitFromTessConstants(tess_constants);
+        }
+    }
     const auto spec = Shader::StageSpecialization(info, runtime_info, binding);
     size_t perm_idx = program->modules.size();
     vk::ShaderModule module{};
 
     const auto it = std::ranges::find(program->modules, spec, &Program::Module::spec);
     if (it == program->modules.end()) {
-        auto new_info = Shader::Info(stage, params);
+        auto new_info = Shader::Info(stage, l_stage, params);
         module = CompileModule(new_info, runtime_info, params.code, perm_idx, binding);
         program->AddPermut(module, std::move(spec));
     } else {
