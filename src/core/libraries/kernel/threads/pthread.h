@@ -6,7 +6,6 @@
 #include <atomic>
 #include <forward_list>
 #include <list>
-#include <atomic>
 #include <mutex>
 #include <semaphore>
 #include <shared_mutex>
