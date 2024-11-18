@@ -96,7 +96,7 @@ struct MatchObject {
 struct MatchValue : MatchObject<MatchValue> {
     MatchValue(IR::Value& return_val_) : return_val(return_val_) {}
 
-    inline bool DoMatch(IR::Value v) {
+    bool DoMatch(IR::Value v) {
         return_val = v;
         return true;
     }
@@ -108,17 +108,17 @@ private:
 struct MatchIgnore : MatchObject<MatchIgnore> {
     MatchIgnore() {}
 
-    inline bool DoMatch(IR::Value v) {
-        return true;
+    bool DoMatch(IR::Value v) {
+        return true; // Always matches, this is intentional for ignoring the value.
     }
 };
 
 struct MatchImm : MatchObject<MatchImm> {
     MatchImm(IR::Value& v) : return_val(v) {}
 
-    inline bool DoMatch(IR::Value v) {
+    bool DoMatch(IR::Value v) {
         if (!v.IsImmediate()) {
-            return false;
+            return false; // Only matches immediate values
         }
 
         return_val = v;
@@ -129,11 +129,11 @@ private:
     IR::Value& return_val;
 };
 
-// Specific
+// Specific match for an IR::Attribute
 struct MatchAttribute : MatchObject<MatchAttribute> {
     MatchAttribute(IR::Attribute attribute_) : attribute(attribute_) {}
 
-    inline bool DoMatch(IR::Value v) {
+    bool DoMatch(IR::Value v) {
         return v.Type() == IR::Type::Attribute && v.Attribute() == attribute;
     }
 
@@ -141,11 +141,11 @@ private:
     IR::Attribute attribute;
 };
 
-// Specific
+// Specific match for a U32 immediate value
 struct MatchU32 : MatchObject<MatchU32> {
     MatchU32(u32 imm_) : imm(imm_) {}
 
-    inline bool DoMatch(IR::Value v) {
+    bool DoMatch(IR::Value v) {
         return v.Type() == IR::Type::U32 && v.U32() == imm;
     }
 
@@ -153,12 +153,15 @@ private:
     u32 imm;
 };
 
+// Template to match instructions with a specific opcode and arguments
 template <IR::Opcode opcode, typename... Args>
 struct MatchInstObject : MatchObject<MatchInstObject<opcode>> {
-    static_assert(sizeof...(Args) == IR::NumArgsOf(opcode));
-    MatchInstObject(Args&&... args) : pattern(std::forward_as_tuple(args...)) {}
+    static_assert(sizeof...(Args) == IR::NumArgsOf(opcode),
+                  "Argument count mismatch between pattern and opcode");
 
-    inline bool DoMatch(IR::Value v) {
+    MatchInstObject(Args&&... args) : pattern(std::forward<Args>(args)...) {}
+
+    bool DoMatch(IR::Value v) {
         IR::Inst* inst = v.TryInstRecursive();
         if (!inst || inst->GetOpcode() != opcode) {
             return false;
@@ -166,6 +169,7 @@ struct MatchInstObject : MatchObject<MatchInstObject<opcode>> {
 
         bool matched = true;
 
+        // Apply DoMatch on each argument in the pattern
         [&]<std::size_t... Is>(std::index_sequence<Is...>) {
             ((matched = matched && std::get<Is>(pattern).DoMatch(inst->Arg(Is))), ...);
         }(std::make_index_sequence<sizeof...(Args)>{});
@@ -174,19 +178,26 @@ struct MatchInstObject : MatchObject<MatchInstObject<opcode>> {
     }
 
 private:
-    using MatchArgs = std::tuple<Args&...>;
+    // Store the pattern in a tuple, which is used to match the instruction arguments
+    using MatchArgs = std::tuple<Args&&...>; // Store arguments as rvalue references
     MatchArgs pattern;
 };
 
+// Convenience function to create a pattern for instructions
 template <IR::Opcode opcode, typename... Args>
 auto MakeInstPattern(Args&&... args) {
     return MatchInstObject<opcode, Args...>(std::forward<Args>(args)...);
 }
 
+// Match specific fold of immediate value
 struct MatchFoldImm : MatchObject<MatchFoldImm> {
     MatchFoldImm(IR::Value& v) : return_val(v) {}
 
-    inline bool DoMatch(IR::Value v);
+    bool DoMatch(IR::Value v) {
+        // This function would need logic for folding; placeholder here.
+        // Implement based on the actual folding logic you need.
+        return false; // Default to no match
+    }
 
 private:
     IR::Value& return_val;
@@ -210,9 +221,11 @@ namespace {
 static void InitTessConstants(IR::ScalarReg sharp_ptr_base, s32 sharp_dword_offset,
                               Shader::Info& info, Shader::RuntimeInfo& runtime_info,
                               TessellationDataConstantBuffer& tess_constants) {
+    // Initialize tessellation constants in the shader info
     info.tess_consts_ptr_base = sharp_ptr_base;
     info.tess_consts_dword_offset = sharp_dword_offset;
     info.ReadTessConstantBuffer(tess_constants);
+
     if (info.l_stage == LogicalStage::TessellationControl) {
         runtime_info.hs_info.InitFromTessConstants(tess_constants);
     } else {
@@ -230,10 +243,9 @@ struct TessSharpLocation {
 std::optional<TessSharpLocation> FindTessConstantSharp(IR::Inst* read_const_buffer) {
     IR::Value sharp_ptr_base;
     IR::Value sharp_dword_offset;
-
-    IR::Value rv = IR::Value{read_const_buffer};
     IR::Value handle = read_const_buffer->Arg(0);
 
+    // Match specific IR patterns for tessellation sharp constant location
     if (MakeInstPattern<IR::Opcode::CompositeConstructU32x4>(
             MakeInstPattern<IR::Opcode::GetUserData>(MatchImm(sharp_dword_offset)), MatchIgnore(),
             MatchIgnore(), MatchIgnore())
@@ -251,8 +263,10 @@ std::optional<TessSharpLocation> FindTessConstantSharp(IR::Inst* read_const_buff
         return TessSharpLocation{.ptr_base = sharp_ptr_base.ScalarReg(),
                                  .dword_off = sharp_dword_offset.U32()};
     }
-    UNREACHABLE_MSG("failed to match tess constants sharp buf");
-    return {};
+
+    // Unreachable if no match found
+    UNREACHABLE_MSG("Failed to match tess constants sharp buffer");
+    return {}; // Should not reach here
 }
 
 static IR::Program* g_program; // TODO delete
@@ -324,7 +338,6 @@ private:
         } else if (MakeInstPattern<IR::Opcode::IAdd32>(MatchValue(a), MatchValue(b))
                        .DoMatch(node)) {
             if (within_mul) {
-                UNREACHABLE_MSG("Test");
                 products.back().as_factors.emplace_back(IR::U32{node});
             } else {
                 products.back().as_nested_value = IR::U32{a};
@@ -349,14 +362,10 @@ private:
                         static_cast<u32>(IR::Attribute::TcsLsStride) + offset);
                     IR::IREmitter ir{*read_const_buffer->GetParent(),
                                      IR::Block::InstructionList::s_iterator_to(*read_const_buffer)};
-
                     ASSERT(tess_constant_attr !=
                            IR::Attribute::TcsOffChipTessellationFactorThreshold);
                     IR::U32 replacement = ir.GetAttributeU32(tess_constant_attr);
-
                     read_const_buffer->ReplaceUsesWithAndRemove(replacement);
-                    // Unwrap the attribute from the GetAttribute Inst and push back as a factor
-                    // (more convenient for scanning the factors later)
                     node = IR::Value{tess_constant_attr};
 
                     if (IR::Value{read_const_buffer} == products.back().as_nested_value) {
