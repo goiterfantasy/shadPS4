@@ -363,27 +363,33 @@ void EmitContext::DefineInputs() {
         break;
     }
     case LogicalStage::TessellationEval: {
+        // Define Tessellation Coordinates and Primitive ID inputs
         tess_coord = DefineInput(F32[3], std::nullopt, spv::BuiltIn::TessCoord);
         primitive_id = DefineVariable(U32[1], spv::BuiltIn::PrimitiveId, spv::StorageClass::Input);
 
-        for (u32 i = 0; i < IR::NumParams; i++) {
+        // Handle Tessellation Parameters
+        constexpr u32 MaxAttributes = 32; // Magic number clarified
+        for (u32 i = 0; i < IR::NumParams; ++i) {
             const IR::Attribute param{IR::Attribute::Param0 + i};
             if (!info.loads.GetAny(param)) {
                 continue;
             }
+
             const u32 num_components = info.loads.NumComponents(param);
-            // The input vertex count isn't statically known, so make length 32 (what glslang does)
-            const Id type{TypeArray(F32[4], ConstU32(32u))};
+            // Use a constant size (32) for dynamic vertex count as per glslang convention
+            const Id type{TypeArray(F32[4], ConstU32(MaxAttributes))};
             const Id id{DefineInput(type, i)};
             Name(id, fmt::format("in_attr{}", i));
             input_params[i] = {id, input_f32, F32[1], 4};
         }
 
-        u32 patch_base_location = runtime_info.vs_info.hs_output_cp_stride >> 4;
+        // Handle Patch Inputs (only if required by tessellation stage)
+        const u32 patch_base_location = runtime_info.vs_info.hs_output_cp_stride >> 4;
         for (size_t index = 0; index < 30; ++index) {
             if (!(info.uses_patches & (1U << index))) {
-                continue;
+                continue; // Skip if patch is not used
             }
+
             const Id id{DefineInput(F32[4], patch_base_location + index)};
             Decorate(id, spv::Decoration::Patch);
             Name(id, fmt::format("patch_in{}", index));
@@ -465,40 +471,38 @@ void EmitContext::DefineOutputs() {
         }
         break;
     }
-    case LogicalStage::TessellationEval: {
-        // TODO copied from logical vertex, figure this out
-        output_position = DefineVariable(F32[4], spv::BuiltIn::Position, spv::StorageClass::Output);
+case LogicalStage::TessellationEval: {
+    // TODO copied from logical vertex, figure this out
+    output_position = DefineVariable(F32[4], spv::BuiltIn::Position, spv::StorageClass::Output);
 
-        const bool has_extra_pos_stores = info.stores.Get(IR::Attribute::Position1) ||
-                                          info.stores.Get(IR::Attribute::Position2) ||
-                                          info.stores.Get(IR::Attribute::Position3);
+    const bool has_extra_pos_stores = info.stores.Get(IR::Attribute::Position1) ||
+                                      info.stores.Get(IR::Attribute::Position2) ||
+                                      info.stores.Get(IR::Attribute::Position3);
 
-        if (has_extra_pos_stores) {
-            const Id type{
-                TypeArray(F32[1], ConstU32(8U))}; // Assuming 8 components for clip/cull distances
-            clip_distances =
-                DefineVariable(type, spv::BuiltIn::ClipDistance, spv::StorageClass::Output);
-            cull_distances =
-                DefineVariable(type, spv::BuiltIn::CullDistance, spv::StorageClass::Output);
-        }
-
-        for (u32 i = 0; i < IR::NumParams; i++) {
-            const IR::Attribute param{IR::Attribute::Param0 + i};
-
-            if (!info.stores.GetAny(param)) {
-                continue; // Skip if no stores for this parameter
-            }
-
-            const u32 num_components = info.stores.NumComponents(param);
-            const Id id{DefineOutput(F32[num_components], i)};
-
-            Name(id, fmt::format("out_attr{}", i)); // Naming output attribute dynamically
-
-            output_params[i] =
-                GetAttributeInfo(AmdGpu::NumberFormat::Float, id, num_components, true);
-        }
-        break;
+    if (has_extra_pos_stores) {
+        const Id type{TypeArray(F32[1], ConstU32(8U))}; // Assuming 8 components for clip/cull distances
+        clip_distances =
+            DefineVariable(type, spv::BuiltIn::ClipDistance, spv::StorageClass::Output);
+        cull_distances =
+            DefineVariable(type, spv::BuiltIn::CullDistance, spv::StorageClass::Output);
     }
+
+    for (u32 i = 0; i < IR::NumParams; i++) {
+        const IR::Attribute param{IR::Attribute::Param0 + i};
+        
+        if (!info.stores.GetAny(param)) {
+            continue; // Skip if no stores for this parameter
+        }
+
+        const u32 num_components = info.stores.NumComponents(param);
+        const Id id{DefineOutput(F32[num_components], i)};
+        
+        Name(id, fmt::format("out_attr{}", i)); // Naming output attribute dynamically
+        
+        output_params[i] = GetAttributeInfo(AmdGpu::NumberFormat::Float, id, num_components, true);
+    }
+    break;
+}
     case LogicalStage::Fragment:
         for (u32 i = 0; i < IR::NumRenderTargets; i++) {
             const IR::Attribute mrt{IR::Attribute::RenderTarget0 + i};
