@@ -432,8 +432,8 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.SHADPS4_TOKEN_REPO }}
       run: |
         api_url="https://api.github.com/repos/${{ github.repository }}"
-        latest_pre-release_info=$(curl -H "Authorization: token $GITHUB_TOKEN" "$api_url/releases/latest")
-        echo "last_pre-release_tag=$(echo "$latest_pre-release_info" | jq -r '.tag_name')" >> $GITHUB_ENV
+        latest_release_info=$(curl -H "Authorization: token $GITHUB_TOKEN" "$api_url/releases/latest")
+        echo "last_release_tag=$(echo "$latest_release_info" | jq -r '.tag_name')" >> $GITHUB_ENV
 
     - name: Create Pre-Release on GitHub
       id: create_pre-release
