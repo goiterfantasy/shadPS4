@@ -218,8 +218,10 @@ spv::ExecutionMode ExecutionMode(AmdGpu::TessellationType primitive) {
         return spv::ExecutionMode::Triangles;
     case AmdGpu::TessellationType::Quad:
         return spv::ExecutionMode::Quads;
+    default:
+        // Handle unexpected cases more explicitly
+        throw std::runtime_error("Unsupported tessellation primitive type");
     }
-    UNREACHABLE_MSG("Tessellation primitive {}", primitive);
 }
 
 spv::ExecutionMode ExecutionMode(AmdGpu::TessellationPartitioning spacing) {
@@ -231,15 +233,16 @@ spv::ExecutionMode ExecutionMode(AmdGpu::TessellationPartitioning spacing) {
     case AmdGpu::TessellationPartitioning::FracEven:
         return spv::ExecutionMode::SpacingFractionalEven;
     default:
-        break;
+        // Handle unexpected cases more explicitly
+        throw std::runtime_error("Unsupported tessellation partitioning type");
     }
-    UNREACHABLE_MSG("Tessellation spacing {}", spacing);
 }
 
 void SetupCapabilities(const Info& info, EmitContext& ctx) {
     ctx.AddCapability(spv::Capability::Image1D);
     ctx.AddCapability(spv::Capability::Sampled1D);
     ctx.AddCapability(spv::Capability::ImageQuery);
+
     if (info.uses_fp16) {
         ctx.AddCapability(spv::Capability::Float16);
         ctx.AddCapability(spv::Capability::Int16);
@@ -248,6 +251,7 @@ void SetupCapabilities(const Info& info, EmitContext& ctx) {
         ctx.AddCapability(spv::Capability::Float64);
     }
     ctx.AddCapability(spv::Capability::Int64);
+
     if (info.has_storage_images || info.has_image_buffers) {
         ctx.AddCapability(spv::Capability::StorageImageExtendedFormats);
         ctx.AddCapability(spv::Capability::StorageImageReadWithoutFormat);
@@ -274,6 +278,7 @@ void SetupCapabilities(const Info& info, EmitContext& ctx) {
     if (info.uses_group_ballot) {
         ctx.AddCapability(spv::Capability::GroupNonUniformBallot);
     }
+
     const auto stage = info.l_stage;
     if (stage == LogicalStage::Vertex) {
         ctx.AddExtension("SPV_KHR_shader_draw_parameters");
@@ -294,8 +299,13 @@ void DefineEntryPoint(const Info& info, EmitContext& ctx, Id main) {
     case LogicalStage::Compute: {
         const std::array<u32, 3> workgroup_size{ctx.runtime_info.cs_info.workgroup_size};
         execution_model = spv::ExecutionModel::GLCompute;
-        ctx.AddExecutionMode(main, spv::ExecutionMode::LocalSize, workgroup_size[0],
-                             workgroup_size[1], workgroup_size[2]);
+
+        if (workgroup_size.size() == 3) {
+            ctx.AddExecutionMode(main, spv::ExecutionMode::LocalSize, workgroup_size[0],
+                                 workgroup_size[1], workgroup_size[2]);
+        } else {
+            throw std::runtime_error("Invalid workgroup size");
+        }
         break;
     }
     case LogicalStage::Vertex:
@@ -303,7 +313,6 @@ void DefineEntryPoint(const Info& info, EmitContext& ctx, Id main) {
         break;
     case LogicalStage::TessellationControl:
         execution_model = spv::ExecutionModel::TessellationControl;
-        ctx.AddCapability(spv::Capability::Tessellation);
         ctx.AddExecutionMode(main, spv::ExecutionMode::OutputVertices,
                              ctx.runtime_info.hs_info.output_control_points);
         break;
@@ -312,10 +321,12 @@ void DefineEntryPoint(const Info& info, EmitContext& ctx, Id main) {
         const auto& vs_info = ctx.runtime_info.vs_info;
         ctx.AddExecutionMode(main, ExecutionMode(vs_info.tess_type));
         ctx.AddExecutionMode(main, ExecutionMode(vs_info.tess_partitioning));
-        ctx.AddExecutionMode(main,
-                             vs_info.tess_topology == AmdGpu::TessellationTopology::TriangleCcw
-                                 ? spv::ExecutionMode::VertexOrderCcw
-                                 : spv::ExecutionMode::VertexOrderCw);
+
+        if (vs_info.tess_topology == AmdGpu::TessellationTopology::TriangleCcw) {
+            ctx.AddExecutionMode(main, spv::ExecutionMode::VertexOrderCcw);
+        } else {
+            ctx.AddExecutionMode(main, spv::ExecutionMode::VertexOrderCw);
+        }
         break;
     }
     case LogicalStage::Fragment:
@@ -368,17 +379,20 @@ void SetupFloatMode(EmitContext& ctx, const Profile& profile, const RuntimeInfo&
 }
 
 void PatchPhiNodes(const IR::Program& program, EmitContext& ctx) {
-    auto inst{program.blocks.front()->begin()};
-    size_t block_index{0};
+    auto inst = program.blocks.front()->begin();
+    size_t block_index = 0;
+
+    // Iterate through blocks to find and patch Phi nodes
     ctx.PatchDeferredPhi([&](size_t phi_arg) {
+        // If phi_arg is 0, we need to move to the next instruction or block
         if (phi_arg == 0) {
             ++inst;
-            if (inst == program.blocks[block_index]->end() ||
-                inst->GetOpcode() != IR::Opcode::Phi) {
-                do {
-                    ++block_index;
-                    inst = program.blocks[block_index]->begin();
-                } while (inst->GetOpcode() != IR::Opcode::Phi);
+
+            // Ensure we find the next Phi instruction
+            while (inst == program.blocks[block_index]->end() ||
+                   inst->GetOpcode() != IR::Opcode::Phi) {
+                ++block_index;
+                inst = program.blocks[block_index]->begin();
             }
         }
         return ctx.Def(inst->Arg(phi_arg));
