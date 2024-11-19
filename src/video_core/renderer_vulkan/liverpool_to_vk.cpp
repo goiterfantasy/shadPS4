@@ -201,14 +201,14 @@ vk::SamplerAddressMode ClampMode(AmdGpu::ClampMode mode) {
         return vk::SamplerAddressMode::eRepeat;
     case AmdGpu::ClampMode::Mirror:
         return vk::SamplerAddressMode::eMirroredRepeat;
-    case AmdGpu::ClampMode::ClampLastTexel:
+    case AmdGpu::ClampMode::ClampToLastTexel:
         return vk::SamplerAddressMode::eClampToEdge;
     case AmdGpu::ClampMode::MirrorOnceHalfBorder:
     case AmdGpu::ClampMode::MirrorOnceBorder:
     case AmdGpu::ClampMode::MirrorOnceLastTexel:
         return vk::SamplerAddressMode::eMirrorClampToEdge;
-    case AmdGpu::ClampMode::ClampHalfBorder:
-    case AmdGpu::ClampMode::ClampBorder:
+    case AmdGpu::ClampMode::ClampToHalfBorder:
+    case AmdGpu::ClampMode::ClampToBorder:
         return vk::SamplerAddressMode::eClampToBorder;
     default:
         UNREACHABLE();
@@ -241,10 +241,10 @@ vk::CompareOp DepthCompare(AmdGpu::DepthCompare comp) {
 vk::Filter Filter(AmdGpu::Filter filter) {
     switch (filter) {
     case AmdGpu::Filter::Point:
-    case AmdGpu::Filter::AnisoPoint:
+    case AmdGpu::Filter::AnisotropicPoint:
         return vk::Filter::eNearest;
     case AmdGpu::Filter::Bilinear:
-    case AmdGpu::Filter::AnisoLinear:
+    case AmdGpu::Filter::AnisotropicLinear:
         return vk::Filter::eLinear;
     default:
         UNREACHABLE();

@@ -222,7 +222,7 @@ void Pipeline::BindTextures(VideoCore::TextureCache& texture_cache, const Shader
         if (sampler.disable_aniso) {
             const auto& tsharp = stage.images[sampler.associated_image].GetSharp(stage);
             if (tsharp.base_level == 0 && tsharp.last_level == 0) {
-                ssharp.max_aniso.Assign(AmdGpu::AnisoRatio::One);
+                ssharp.max_aniso.Assign(AmdGpu::AnisoRatio::x8);
             }
         }
         const auto vk_sampler = texture_cache.GetSampler(ssharp);
