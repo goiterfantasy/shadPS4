@@ -205,15 +205,9 @@ vk::SamplerAddressMode ClampMode(AmdGpu::ClampMode mode) {
         return vk::SamplerAddressMode::eClampToEdge;
     case AmdGpu::ClampMode::MirrorOnceHalfBorder:
     case AmdGpu::ClampMode::MirrorOnceBorder:
-        LOG_WARNING(Render_Vulkan, "Unimplemented clamp mode {}, using closest equivalent.",
-                    static_cast<u32>(mode));
-        [[fallthrough]];
     case AmdGpu::ClampMode::MirrorOnceLastTexel:
         return vk::SamplerAddressMode::eMirrorClampToEdge;
     case AmdGpu::ClampMode::ClampHalfBorder:
-        LOG_WARNING(Render_Vulkan, "Unimplemented clamp mode {}, using closest equivalent.",
-                    static_cast<u32>(mode));
-        [[fallthrough]];
     case AmdGpu::ClampMode::ClampBorder:
         return vk::SamplerAddressMode::eClampToBorder;
     default:
@@ -270,14 +264,14 @@ vk::SamplerReductionMode FilterMode(AmdGpu::FilterMode mode) {
     }
 }
 
+// Converts MipFilter to Vulkan SamplerMipmapMode
 vk::SamplerMipmapMode MipFilter(AmdGpu::MipFilter filter) {
     switch (filter) {
     case AmdGpu::MipFilter::Point:
+    case AmdGpu::MipFilter::None:
         return vk::SamplerMipmapMode::eNearest;
     case AmdGpu::MipFilter::Linear:
         return vk::SamplerMipmapMode::eLinear;
-    case AmdGpu::MipFilter::None:
-        return vk::SamplerMipmapMode::eNearest;
     default:
         UNREACHABLE();
     }
