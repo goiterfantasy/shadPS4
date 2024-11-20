@@ -383,7 +383,7 @@ jobs:
       with:
         name: shadps4-linux-qt-${{ needs.get-info.outputs.date }}-${{ needs.get-info.outputs.shorthash }}
         path: Shadps4-qt.AppImage
-
+    
   linux-flatpak:
     runs-on: ubuntu-24.04
     needs: get-info
@@ -404,10 +404,10 @@ jobs:
       with:
         path: shadps4.flatpak
         name: shadps4-linux-flatpak-${{ needs.get-info.outputs.date }}-${{ needs.get-info.outputs.shorthash }}
-
+        
   pre-release:
     if: github.ref == 'refs/heads/mainBB' && github.repository == 'diegolix29/shadPS4' && github.event_name == 'push'
-    needs: [get-info, windows-sdl, windows-qt, macos-sdl, macos-qt, linux-sdl, linux-qt, linux-flatpak]
+    needs: [get-info, windows-sdl, windows-qt, macos-sdl, macos-qt, linux-flatpak, linux-sdl, linux-qt]
     runs-on: ubuntu-latest
     steps:
     - name: Download all artifacts
@@ -426,17 +426,17 @@ jobs:
           fi
         done
   
-    - name: Get Pre-release information
-      id: get_Pre-release
+    - name: Get latest release information
+      id: get_latest_release
       env:
         GITHUB_TOKEN: ${{ secrets.SHADPS4_TOKEN_REPO }}
       run: |
         api_url="https://api.github.com/repos/${{ github.repository }}"
-        Pre_release_info=$(curl -H "Authorization: token $GITHUB_TOKEN" "$api_url/releases")
-        echo "last_Pre-release_tag=$(echo "$Pre-release_info" | jq -r '.tag_name')" >> $GITHUB_ENV
+        latest_release_info=$(curl -H "Authorization: token $GITHUB_TOKEN" "$api_url/releases/latest")
+        echo "last_release_tag=$(echo "$latest_release_info" | jq -r '.tag_name')" >> $GITHUB_ENV
 
     - name: Create Pre-Release on GitHub
-      id: create_pre-release
+      id: create_release
       uses: ncipollo/release-action@v1
       with:
         token: ${{ secrets.SHADPS4_TOKEN_REPO }}
@@ -444,7 +444,7 @@ jobs:
         tag: "Pre-release-shadPS4-${{ needs.get-info.outputs.date }}-${{ needs.get-info.outputs.shorthash }}"
         draft: false
         prerelease: true
-        body: "Full Changelog: [${{ env.last_Pre-release_tag }}...${{ needs.get-info.outputs.shorthash }}](https://github.com/diegolix29/shadPS4/compare/${{ env.last_release_tag }}...${{ needs.get-info.outputs.shorthash }})"
+        body: "Full Changelog: [${{ env.last_release_tag }}...${{ needs.get-info.outputs.shorthash }}](https://github.com/shadps4-emu/shadPS4/compare/${{ env.last_release_tag }}...${{ needs.get-info.outputs.fullhash }})"
         artifacts: ./artifacts/*.zip
 
     - name: Publish to Release Repository
@@ -452,9 +452,9 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.SHADPS4_TOKEN_REPO }}
       run: |
         ARTIFACTS_DIR=./artifacts
-        REPO_WINDOWS="diegolix29/shadps4-binaries-Windows"
-        REPO_LINUX="diegolix29/shadps4-binaries-Linux"
-        REPO_MAC="diegolix29/shadps4-binaries-Mac"
+        REPO_WINDOWS="shadps4-emu/shadps4-binaries-Windows"
+        REPO_LINUX="shadps4-emu/shadps4-binaries-Linux"
+        REPO_MAC="shadps4-emu/shadps4-binaries-Mac"
 
         for file in "$ARTIFACTS_DIR"/*.zip; do
           filename=$(basename "$file")
@@ -488,7 +488,7 @@ jobs:
                 "name": "Pre-release-shadPS4-${{ needs.get-info.outputs.date }}-${{ needs.get-info.outputs.shorthash }}",
                 "draft": false,
                 "prerelease": true,
-                "body": "Commit: [${{ needs.get-info.outputs.shorthash }}](https://github.com/diegolix29/shadPS4/commit/${{ needs.get-info.outputs.shorthash }})"
+                "body": "Commit: [${{ needs.get-info.outputs.fullhash }}](https://github.com/shadps4-emu/shadPS4/commit/${{ needs.get-info.outputs.fullhash }})"
               }' "https://api.github.com/repos/$REPO/releases" | jq -r '.id')
           else
             echo "Release already exists in $REPO with ID $release_id"
@@ -556,4 +556,3 @@ jobs:
             echo "Skipping pre-release: $release_id (newer or same date)"
           fi
         done
-        
