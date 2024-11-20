@@ -380,7 +380,6 @@ enum class BorderColor : u64 {
     Custom = 3,
 };
 
-
 // Table 8.12 Sampler Resource Definition
 struct Sampler {
     union {
