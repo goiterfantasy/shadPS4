@@ -432,8 +432,8 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.SHADPS4_TOKEN_REPO }}
       run: |
         api_url="https://api.github.com/repos/${{ github.repository }}"
-        latest_release_info=$(curl -H "Authorization: token $GITHUB_TOKEN" "$api_url/releases/latest")
-        echo "last_release_tag=$(echo "$latest_release_info" | jq -r '.tag_name')" >> $GITHUB_ENV
+        latest_Pre-release_info=$(curl -H "Authorization: token $GITHUB_TOKEN" "$api_url/releases/latest")
+        echo "last_Pre-release_tag=$(echo "$latest_Pre-release_info" | jq -r '.tag_name')" >> $GITHUB_ENV
 
     - name: Create Pre-Release on GitHub
       id: create_pre-release
@@ -444,7 +444,7 @@ jobs:
         tag: "Pre-release-shadPS4-${{ needs.get-info.outputs.date }}-${{ needs.get-info.outputs.shorthash }}"
         draft: false
         prerelease: true
-        body: "Full Changelog: [${{ env.last_release_tag }}...${{ needs.get-info.outputs.shorthash }}](https://github.com/diegolix29/shadPS4/compare/${{ env.last_release_tag }}...${{ needs.get-info.outputs.shorthash }})"
+        body: "Full Changelog: [${{ env.last_Pre-release_tag }}...${{ needs.get-info.outputs.shorthash }}](https://github.com/diegolix29/shadPS4/compare/${{ env.last_release_tag }}...${{ needs.get-info.outputs.shorthash }})"
         artifacts: ./artifacts/*.zip
 
     - name: Publish to Release Repository
