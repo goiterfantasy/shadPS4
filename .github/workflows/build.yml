@@ -510,10 +510,10 @@ jobs:
         releases=$(curl -H "Authorization: token $GITHUB_TOKEN" "$api_url")
         
         # Capture the most recent pre-release (assuming the first one is the latest)
-        current_Pre-release=$(echo "$releases" | jq -c '.[] | select(.prerelease == true) | .published_at' | sort -r | head -n 1)
+        current_release=$(echo "$releases" | jq -c '.[] | select(.prerelease == true) | .published_at' | sort -r | head -n 1)
         
         # Remove extra quotes from captured date
-        current_Pre-release=$(echo $current_release | tr -d '"')
+        current_release=$(echo $current_release | tr -d '"')
                 
         # Export the current published_at to be available for the next step
         echo "CURRENT_PUBLISHED_AT=$current_release" >> $GITHUB_ENV
