@@ -426,14 +426,14 @@ jobs:
           fi
         done
   
-    - name: Get latest pre-release information
-      id: get_latest_pre-release
+    - name: Get Pre-release information
+      id: get_Pre-release
       env:
         GITHUB_TOKEN: ${{ secrets.SHADPS4_TOKEN_REPO }}
       run: |
         api_url="https://api.github.com/repos/${{ github.repository }}"
-        latest_release_info=$(curl -H "Authorization: token $GITHUB_TOKEN" "$api_url/releases/latest")
-        echo "last_Pre-release_tag=$(echo "$latest_Pre-release_info" | jq -r '.tag_name')" >> $GITHUB_ENV
+        Pre_release_info=$(curl -H "Authorization: token $GITHUB_TOKEN" "$api_url/releases")
+        echo "last_Pre-release_tag=$(echo "$Pre-release_info" | jq -r '.tag_name')" >> $GITHUB_ENV
 
     - name: Create Pre-Release on GitHub
       id: create_pre-release
@@ -510,10 +510,10 @@ jobs:
         releases=$(curl -H "Authorization: token $GITHUB_TOKEN" "$api_url")
         
         # Capture the most recent pre-release (assuming the first one is the latest)
-        current_release=$(echo "$releases" | jq -c '.[] | select(.prerelease == true) | .published_at' | sort -r | head -n 1)
+        current_Pre-release=$(echo "$releases" | jq -c '.[] | select(.prerelease == true) | .published_at' | sort -r | head -n 1)
         
         # Remove extra quotes from captured date
-        current_release=$(echo $current_release | tr -d '"')
+        current_Pre-release=$(echo $current_release | tr -d '"')
                 
         # Export the current published_at to be available for the next step
         echo "CURRENT_PUBLISHED_AT=$current_release" >> $GITHUB_ENV
