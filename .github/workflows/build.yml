@@ -491,7 +491,7 @@ jobs:
                 "body": "Commit: [${{ needs.get-info.outputs.fullhash }}](https://github.com/diegolix29/shadPS4/commit/${{ needs.get-info.outputs.fullhash }})"
               }' "https://api.github.com/repos/$REPO/releases" | jq -r '.id')
           else
-            echo "pre-elease already exists in $REPO with ID $release_id"
+            echo "pre-release already exists in $REPO with ID $release_id"
           fi
 
           # Artifact upload
