@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'push' }}
 
 env:
-  BUILD_TYPE: pre-release
+  BUILD_TYPE: Release
 
 jobs:
   reuse:
