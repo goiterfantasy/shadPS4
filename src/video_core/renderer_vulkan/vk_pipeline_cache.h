@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <span>
+#include <boost/container/small_vector.hpp>
 #include <tsl/robin_map.h>
 #include "shader_recompiler/profile.h"
 #include "shader_recompiler/recompiler.h"
@@ -64,6 +66,7 @@ private:
     vk::ShaderModule CompileModule(Shader::Info& info, Shader::RuntimeInfo& runtime_info,
                                    std::span<const u32> code, size_t perm_idx,
                                    Shader::Backend::Bindings& binding);
+
     Shader::RuntimeInfo BuildRuntimeInfo(Shader::Stage stage, Shader::LogicalStage l_stage);
 
 private:
