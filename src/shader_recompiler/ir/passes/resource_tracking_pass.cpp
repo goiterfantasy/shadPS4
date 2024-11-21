@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <algorithm>
+
 #include <boost/container/small_vector.hpp>
 #include "shader_recompiler/info.h"
 #include "shader_recompiler/ir/basic_block.h"
