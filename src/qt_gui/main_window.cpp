@@ -128,6 +128,7 @@ void MainWindow::AddUiWidgets() {
     ui->toolBar->addWidget(ui->refreshButton);
     ui->toolBar->addWidget(ui->settingsButton);
     ui->toolBar->addWidget(ui->controllerButton);
+    ui->toolBar->addWidget(ui->restartButton);
     QFrame* line = new QFrame(this);
     line->setFrameShape(QFrame::StyledPanel);
     line->setFrameShadow(QFrame::Sunken);
@@ -248,6 +249,7 @@ void MainWindow::CreateConnects() {
 
     connect(ui->playButton, &QPushButton::clicked, this, &MainWindow::StartGame);
     connect(ui->stopButton, &QPushButton::clicked, this, &MainWindow::StopGame);
+    connect(ui->restartButton, &QPushButton::clicked, this, &MainWindow::RestartGame);
     connect(m_game_grid_frame.get(), &QTableWidget::cellDoubleClicked, this,
             &MainWindow::StartGame);
     connect(m_game_list_frame.get(), &QTableWidget::cellDoubleClicked, this,
@@ -592,6 +594,16 @@ void MainWindow::StopGame() {
     quitEvent.type = SDL_EVENT_QUIT;
     SDL_PushEvent(&quitEvent);
 }
+
+void MainWindow::RestartGame() {
+    if (isGameRunning) {
+        StopGame(); 
+        StartGame();
+    } else {
+        qDebug() << "No game is currently running to restart.";
+    }
+}
+
 void MainWindow::SearchGameTable(const QString& text) {
     if (isTableList) {
         for (int row = 0; row < m_game_list_frame->rowCount(); row++) {
@@ -977,6 +989,7 @@ void MainWindow::SetUiIcons(bool isWhite) {
     ui->playButton->setIcon(RecolorIcon(ui->playButton->icon(), isWhite));
     ui->pauseButton->setIcon(RecolorIcon(ui->pauseButton->icon(), isWhite));
     ui->stopButton->setIcon(RecolorIcon(ui->stopButton->icon(), isWhite));
+    ui->restartButton->setIcon(RecolorIcon(ui->restartButton->icon(), isWhite));
     ui->refreshButton->setIcon(RecolorIcon(ui->refreshButton->icon(), isWhite));
     ui->settingsButton->setIcon(RecolorIcon(ui->settingsButton->icon(), isWhite));
     ui->controllerButton->setIcon(RecolorIcon(ui->controllerButton->icon(), isWhite));

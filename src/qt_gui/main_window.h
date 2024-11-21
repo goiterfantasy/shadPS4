@@ -38,6 +38,7 @@ public:
     void InstallDirectory();
     void StartGame();
     void StopGame();
+    void RestartGame();
 
 private Q_SLOTS:
     void ConfigureGuiFromSettings();
