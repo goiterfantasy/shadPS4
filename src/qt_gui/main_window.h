@@ -26,7 +26,6 @@ class GameListFrame;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
-
 signals:
     void WindowResized(QResizeEvent* event);
     void ExtractionFinished();
@@ -61,7 +60,6 @@ private:
 #ifdef ENABLE_UPDATER
     void CheckUpdateMain(bool checkSave);
 #endif
-
     void CreateConnects();
     void SetLastUsedTheme();
     void SetLastIconSizeBullet();

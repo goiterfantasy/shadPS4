@@ -629,24 +629,32 @@ void MainWindow::RestartGame() {
         QString program = QCoreApplication::applicationFilePath();
         QStringList arguments = QCoreApplication::arguments();
 
-        // Add the "--start-game" flag for the new instance
-        arguments << "--start-game";
+        // Add the "--resume-child" flag to indicate the new instance should resume from the child
+        arguments << "--resume-child";
 
-        // Close the console window (Windows-specific)
-        HWND consoleWindow = GetConsoleWindow(); // Get the console window handle
-        if (consoleWindow != nullptr) {
-            qDebug() << "Closing console window...";
-            DestroyWindow(consoleWindow); // Close the console window
+        // Start a child process to hold the game state
+        QProcess* childProcess = new QProcess(this);
+        QStringList childArguments;
+        childArguments << "--child-process";
+
+        qDebug() << "Starting child process to carry the game state...";
+        if (!childProcess->startDetached(program, childArguments)) {
+            qDebug() << "Failed to start the child process.";
+            return;
         }
-        StopGame();
+        qDebug() << "Child process started successfully.";
 
-#ifdef _WIN32
-        FreeConsole();
-        qDebug() << "Console closed.";
-#endif
-        // Relaunch the application
+        // Stop the current game
+        StopGame();
+        qDebug() << "Stopping the game...";
+
+        // Relaunch the main application
+        qDebug() << "Restarting the application...";
         if (QProcess::startDetached(program, arguments)) {
             qDebug() << "Application restarted successfully. Exiting current instance...";
+
+        } else {
+            qDebug() << "Failed to restart the application.";
         }
     } else {
         qDebug() << "No game is currently running to restart.";
