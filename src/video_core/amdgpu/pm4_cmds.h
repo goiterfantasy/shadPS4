@@ -800,7 +800,6 @@ struct PM4CmdDrawIndirect {
     };
     u32 draw_initiator; ///< Draw Initiator Register
 };
-
 struct PM4CmdDrawIndexIndirect {
     struct DrawIndexInstancedArgs {
         u32 index_count_per_instance;

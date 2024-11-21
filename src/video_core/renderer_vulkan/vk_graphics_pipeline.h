@@ -47,6 +47,7 @@ struct GraphicsPipelineKey {
     std::array<Liverpool::BlendControl, Liverpool::NumColorBuffers> blend_controls;
     std::array<vk::ColorComponentFlags, Liverpool::NumColorBuffers> write_masks;
     std::array<vk::Format, MaxVertexBufferCount> vertex_buffer_formats;
+    u32 patch_control_points;
 
     bool operator==(const GraphicsPipelineKey& key) const noexcept {
         return std::memcmp(this, &key, sizeof(key)) == 0;
@@ -64,13 +65,13 @@ public:
     void BindResources(const Liverpool::Regs& regs, VideoCore::BufferCache& buffer_cache,
                        VideoCore::TextureCache& texture_cache) const;
 
-    const Shader::Info& GetStage(Shader::Stage stage) const noexcept {
+    const Shader::Info& GetStage(Shader::LogicalStage stage) const noexcept {
         return *stages[u32(stage)];
     }
 
     bool IsEmbeddedVs() const noexcept {
         static constexpr size_t EmbeddedVsHash = 0x9b2da5cf47f8c29f;
-        return key.stage_hashes[u32(Shader::Stage::Vertex)] == EmbeddedVsHash;
+        return key.stage_hashes[u32(Shader::LogicalStage::Vertex)] == EmbeddedVsHash;
     }
 
     auto GetWriteMasks() const {

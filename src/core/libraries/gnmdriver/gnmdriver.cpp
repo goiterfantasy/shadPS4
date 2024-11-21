@@ -8,12 +8,11 @@
 #include "common/config.h"
 #include "common/debug.h"
 #include "common/logging/log.h"
-#include "common/path_util.h"
 #include "common/slot_vector.h"
 #include "core/address_space.h"
 #include "core/debug_state.h"
 #include "core/libraries/error_codes.h"
-#include "core/libraries/kernel/libkernel.h"
+#include "core/libraries/kernel/process.h"
 #include "core/libraries/libs.h"
 #include "core/libraries/videoout/video_out.h"
 #include "core/platform.h"
@@ -377,9 +376,12 @@ int PS4_SYSV_ABI sceGnmAreSubmitsAllowed() {
     return submission_lock == 0;
 }
 
-int PS4_SYSV_ABI sceGnmBeginWorkload() {
-    LOG_ERROR(Lib_GnmDriver, "(STUBBED) called");
-    return ORBIS_OK;
+int PS4_SYSV_ABI sceGnmBeginWorkload(u32 workload_stream, u64* workload) {
+    if (workload) {
+        *workload = (-(u32)(workload_stream < 0x10) & 1);
+        return 0xf < workload_stream;
+    }
+    return 3;
 }
 
 s32 PS4_SYSV_ABI sceGnmComputeWaitOnAddress(u32* cmdbuf, u32 size, uintptr_t addr, u32 mask,
@@ -413,9 +415,12 @@ int PS4_SYSV_ABI sceGnmComputeWaitSemaphore() {
     return ORBIS_OK;
 }
 
-int PS4_SYSV_ABI sceGnmCreateWorkloadStream() {
-    LOG_ERROR(Lib_GnmDriver, "(STUBBED) called");
-    return ORBIS_OK;
+int PS4_SYSV_ABI sceGnmCreateWorkloadStream(u64 param1, u32* workload_stream) {
+    if (param1 != 0 && workload_stream) {
+        *workload_stream = 1;
+        return 0;
+    }
+    return 3;
 }
 
 int PS4_SYSV_ABI sceGnmDebuggerGetAddressWatch() {
@@ -952,9 +957,11 @@ int PS4_SYSV_ABI sceGnmDriverTriggerCapture() {
     return ORBIS_OK;
 }
 
-int PS4_SYSV_ABI sceGnmEndWorkload() {
-    LOG_ERROR(Lib_GnmDriver, "(STUBBED) called");
-    return ORBIS_OK;
+int PS4_SYSV_ABI sceGnmEndWorkload(u64 workload) {
+    if (workload != 0) {
+        return (0xf < ((workload >> 0x38) & 0xff)) * 2;
+    }
+    return 2;
 }
 
 s32 PS4_SYSV_ABI sceGnmFindResourcesPublic() {
@@ -1634,7 +1641,6 @@ s32 PS4_SYSV_ABI sceGnmSetGsShader(u32* cmdbuf, u32 size, const u32* gs_regs) {
 
 s32 PS4_SYSV_ABI sceGnmSetHsShader(u32* cmdbuf, u32 size, const u32* hs_regs, u32 param4) {
     LOG_TRACE(Lib_GnmDriver, "called");
-
     if (!cmdbuf || size < 0x1E) {
         return -1;
     }
@@ -1652,11 +1658,19 @@ s32 PS4_SYSV_ABI sceGnmSetHsShader(u32* cmdbuf, u32 size, const u32* hs_regs, u3
     cmdbuf = PM4CmdSetData::SetShReg(cmdbuf, 0x108u, hs_regs[0], 0u); // SPI_SHADER_PGM_LO_HS
     cmdbuf = PM4CmdSetData::SetShReg(cmdbuf, 0x10au, hs_regs[2],
                                      hs_regs[3]); // SPI_SHADER_PGM_RSRC1_HS/SPI_SHADER_PGM_RSRC2_HS
+    // This is wrong but just stash them here for now
+    // Should read the tess constants buffer instead, which is bound as V#, into runtime_info.
+    // HsConstants member of HsProgram is used to derive TessellationDataConstantBuffer, its members
+    // dont correspond to real registers
+    cmdbuf = PM4CmdSetData::SetShReg(cmdbuf, 0x11cu, hs_regs[4], hs_regs[5], hs_regs[6], hs_regs[7],
+                                     hs_regs[8], hs_regs[9], hs_regs[10], hs_regs[11], hs_regs[12],
+                                     hs_regs[13]); // TODO comment
     cmdbuf = PM4CmdSetData::SetContextReg(cmdbuf, 0x286u, hs_regs[5],
-                                          hs_regs[5]);                 // VGT_HOS_MAX_TESS_LEVEL
+                                          hs_regs[6]);                 // VGT_HOS_MAX_TESS_LEVEL
     cmdbuf = PM4CmdSetData::SetContextReg(cmdbuf, 0x2dbu, hs_regs[4]); // VGT_TF_PARAM
     cmdbuf = PM4CmdSetData::SetContextReg(cmdbuf, 0x2d6u, param4);     // VGT_LS_HS_CONFIG
 
+    // right padding?
     WriteTrailingNop<11>(cmdbuf);
     return ORBIS_OK;
 }
@@ -2124,6 +2138,14 @@ s32 PS4_SYSV_ABI sceGnmSubmitAndFlipCommandBuffers(u32 count, u32* dcb_gpu_addrs
                                                    u32* dcb_sizes_in_bytes, u32* ccb_gpu_addrs[],
                                                    u32* ccb_sizes_in_bytes, u32 vo_handle,
                                                    u32 buf_idx, u32 flip_mode, u32 flip_arg) {
+    return sceGnmSubmitAndFlipCommandBuffersForWorkload(
+        count, count, dcb_gpu_addrs, dcb_sizes_in_bytes, ccb_gpu_addrs, ccb_sizes_in_bytes,
+        vo_handle, buf_idx, flip_mode, flip_arg);
+}
+
+s32 PS4_SYSV_ABI sceGnmSubmitAndFlipCommandBuffersForWorkload(
+    u32 workload, u32 count, u32* dcb_gpu_addrs[], u32* dcb_sizes_in_bytes, u32* ccb_gpu_addrs[],
+    u32* ccb_sizes_in_bytes, u32 vo_handle, u32 buf_idx, u32 flip_mode, u32 flip_arg) {
     LOG_DEBUG(Lib_GnmDriver, "called [buf = {}]", buf_idx);
 
     auto* cmdbuf = dcb_gpu_addrs[count - 1];
@@ -2140,14 +2162,11 @@ s32 PS4_SYSV_ABI sceGnmSubmitAndFlipCommandBuffers(u32 count, u32* dcb_gpu_addrs
                                       ccb_sizes_in_bytes);
 }
 
-int PS4_SYSV_ABI sceGnmSubmitAndFlipCommandBuffersForWorkload() {
-    LOG_ERROR(Lib_GnmDriver, "(STUBBED) called");
-    return ORBIS_OK;
-}
-
-s32 PS4_SYSV_ABI sceGnmSubmitCommandBuffers(u32 count, const u32* dcb_gpu_addrs[],
-                                            u32* dcb_sizes_in_bytes, const u32* ccb_gpu_addrs[],
-                                            u32* ccb_sizes_in_bytes) {
+int PS4_SYSV_ABI sceGnmSubmitCommandBuffersForWorkload(u32 workload, u32 count,
+                                                       const u32* dcb_gpu_addrs[],
+                                                       u32* dcb_sizes_in_bytes,
+                                                       const u32* ccb_gpu_addrs[],
+                                                       u32* ccb_sizes_in_bytes) {
     LOG_DEBUG(Lib_GnmDriver, "called");
 
     if (!dcb_gpu_addrs || !dcb_sizes_in_bytes) {
@@ -2232,9 +2251,11 @@ s32 PS4_SYSV_ABI sceGnmSubmitCommandBuffers(u32 count, const u32* dcb_gpu_addrs[
     return ORBIS_OK;
 }
 
-int PS4_SYSV_ABI sceGnmSubmitCommandBuffersForWorkload() {
-    LOG_ERROR(Lib_GnmDriver, "(STUBBED) called");
-    return ORBIS_OK;
+s32 PS4_SYSV_ABI sceGnmSubmitCommandBuffers(u32 count, const u32* dcb_gpu_addrs[],
+                                            u32* dcb_sizes_in_bytes, const u32* ccb_gpu_addrs[],
+                                            u32* ccb_sizes_in_bytes) {
+    return sceGnmSubmitCommandBuffersForWorkload(count, count, dcb_gpu_addrs, dcb_sizes_in_bytes,
+                                                 ccb_gpu_addrs, ccb_sizes_in_bytes);
 }
 
 int PS4_SYSV_ABI sceGnmSubmitDone() {

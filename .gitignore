@@ -414,3 +414,12 @@ FodyWeavers.xsd
 
 # for macOS
 **/.DS_Store
+
+# JetBrains
+.idea
+
+# flatpak build
+builddir
+.flatpak-builder
+repo
+*.flatpak

@@ -44,6 +44,7 @@ public:
     QPushButton* refreshButton;
     QPushButton* settingsButton;
     QPushButton* controllerButton;
+    QPushButton* restartButton;
 
     QWidget* sizeSliderContainer;
     QHBoxLayout* sizeSliderContainer_layout;
@@ -199,6 +200,10 @@ public:
         controllerButton->setFlat(true);
         controllerButton->setIcon(QIcon(":images/controller_icon.png"));
         controllerButton->setIconSize(QSize(40, 40));
+        restartButton = new QPushButton(centralWidget);
+        restartButton->setFlat(true);
+        restartButton->setIcon(QIcon(":images/refresh_icon.png"));
+        restartButton->setIconSize(QSize(40, 40));
 
         sizeSliderContainer = new QWidget(centralWidget);
         sizeSliderContainer->setObjectName("sizeSliderContainer");

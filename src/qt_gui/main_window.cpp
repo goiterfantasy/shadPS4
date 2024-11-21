@@ -3,7 +3,10 @@
 
 #include <QDockWidget>
 #include <QKeyEvent>
+
+#include <QPlainTextEdit>
 #include <QProgressDialog>
+#include <SDL3/SDL_events.h>
 
 #include "about_dialog.h"
 #include "cheats_patches.h"
@@ -21,6 +24,9 @@
 #include "install_dir_select.h"
 #include "main_window.h"
 #include "settings_dialog.h"
+
+#include "kbm_config_dialog.h"
+
 #include "video_core/renderer_vulkan/vk_instance.h"
 #ifdef ENABLE_DISCORD_RPC
 #include "common/discord_rpc_handler.h"
@@ -90,6 +96,32 @@ bool MainWindow::Init() {
     return true;
 }
 
+// Initialize shared memory for game state
+QSharedMemory sharedMemory("GameStateKey");
+
+// Write game state in child process
+void writeGameState() {
+    if (!sharedMemory.create(1024)) {
+        qDebug() << "Failed to create shared memory:" << sharedMemory.errorString();
+        return;
+    }
+    char* to = static_cast<char*>(sharedMemory.data());
+    const char* from = "Game State Data";
+    memcpy(to, from, qstrlen(from));
+    qDebug() << "Game state written to shared memory.";
+}
+
+// Read game state in the main process
+void readGameState() {
+    if (!sharedMemory.attach()) {
+        qDebug() << "Failed to attach to shared memory:" << sharedMemory.errorString();
+        return;
+    }
+    char* from = static_cast<char*>(sharedMemory.data());
+    qDebug() << "Game state read from shared memory:" << QString::fromLatin1(from);
+    sharedMemory.detach();
+}
+
 void MainWindow::CreateActions() {
     // create action group for icon size
     m_icon_size_act_group = new QActionGroup(this);
@@ -122,6 +154,7 @@ void MainWindow::AddUiWidgets() {
     ui->toolBar->addWidget(ui->refreshButton);
     ui->toolBar->addWidget(ui->settingsButton);
     ui->toolBar->addWidget(ui->controllerButton);
+    ui->toolBar->addWidget(ui->restartButton);
     QFrame* line = new QFrame(this);
     line->setFrameShape(QFrame::StyledPanel);
     line->setFrameShadow(QFrame::Sunken);
@@ -241,6 +274,8 @@ void MainWindow::CreateConnects() {
     });
 
     connect(ui->playButton, &QPushButton::clicked, this, &MainWindow::StartGame);
+    connect(ui->stopButton, &QPushButton::clicked, this, &MainWindow::StopGame);
+    connect(ui->restartButton, &QPushButton::clicked, this, &MainWindow::RestartGame);
     connect(m_game_grid_frame.get(), &QTableWidget::cellDoubleClicked, this,
             &MainWindow::StartGame);
     connect(m_game_list_frame.get(), &QTableWidget::cellDoubleClicked, this,
@@ -262,6 +297,11 @@ void MainWindow::CreateConnects() {
                 &MainWindow::OnLanguageChanged);
 
         settingsDialog->exec();
+    });
+    // this is the editor for kbm keybinds
+    connect(ui->controllerButton, &QPushButton::clicked, this, [this]() {
+        EditorDialog* editorWindow = new EditorDialog(this);
+        editorWindow->exec(); // Show the editor window modally
     });
 
 #ifdef ENABLE_UPDATER
@@ -572,6 +612,44 @@ void MainWindow::StartGame() {
             return;
         }
         emulator.Run(path);
+    }
+}
+
+void MainWindow::StopGame() {
+    SDL_Event quitEvent;
+    quitEvent.type = SDL_EVENT_QUIT;
+    SDL_PushEvent(&quitEvent);
+}
+
+void MainWindow::RestartGame() {
+    if (isGameRunning) {
+        qDebug() << "Preparing to restart the application...";
+
+        // Capture the current application path and arguments
+        QString program = QCoreApplication::applicationFilePath();
+        QStringList arguments = QCoreApplication::arguments();
+
+        // Add the "--start-game" flag for the new instance
+        arguments << "--start-game";
+
+        // Close the console window (Windows-specific)
+        HWND consoleWindow = GetConsoleWindow(); // Get the console window handle
+        if (consoleWindow != nullptr) {
+            qDebug() << "Closing console window...";
+            DestroyWindow(consoleWindow); // Close the console window
+        }
+        StopGame();
+
+#ifdef _WIN32
+        FreeConsole();
+        qDebug() << "Console closed.";
+#endif
+        // Relaunch the application
+        if (QProcess::startDetached(program, arguments)) {
+            qDebug() << "Application restarted successfully. Exiting current instance...";
+        }
+    } else {
+        qDebug() << "No game is currently running to restart.";
     }
 }
 
@@ -960,6 +1038,7 @@ void MainWindow::SetUiIcons(bool isWhite) {
     ui->playButton->setIcon(RecolorIcon(ui->playButton->icon(), isWhite));
     ui->pauseButton->setIcon(RecolorIcon(ui->pauseButton->icon(), isWhite));
     ui->stopButton->setIcon(RecolorIcon(ui->stopButton->icon(), isWhite));
+    ui->restartButton->setIcon(RecolorIcon(ui->restartButton->icon(), isWhite));
     ui->refreshButton->setIcon(RecolorIcon(ui->refreshButton->icon(), isWhite));
     ui->settingsButton->setIcon(RecolorIcon(ui->settingsButton->icon(), isWhite));
     ui->controllerButton->setIcon(RecolorIcon(ui->controllerButton->icon(), isWhite));

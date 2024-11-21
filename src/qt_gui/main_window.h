@@ -26,6 +26,7 @@ class GameListFrame;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
+
 signals:
     void WindowResized(QResizeEvent* event);
     void ExtractionFinished();
@@ -37,6 +38,8 @@ public:
     void InstallDragDropPkg(std::filesystem::path file, int pkgNum, int nPkg);
     void InstallDirectory();
     void StartGame();
+    void StopGame();
+    void RestartGame();
 
 private Q_SLOTS:
     void ConfigureGuiFromSettings();
@@ -58,6 +61,7 @@ private:
 #ifdef ENABLE_UPDATER
     void CheckUpdateMain(bool checkSave);
 #endif
+
     void CreateConnects();
     void SetLastUsedTheme();
     void SetLastIconSizeBullet();

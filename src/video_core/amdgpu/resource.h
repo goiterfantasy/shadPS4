@@ -291,6 +291,22 @@ struct Image {
         return static_cast<TilingMode>(tiling_index);
     }
 
+    bool NeedsNormalizationPatch() const {
+        if (GetNumberFmt() == AmdGpu::NumberFormat::Unorm ||
+            GetNumberFmt() == AmdGpu::NumberFormat::Snorm) {
+            switch (GetDataFmt()) {
+            case AmdGpu::DataFormat::Format32:
+            case AmdGpu::DataFormat::Format32_32:
+            case AmdGpu::DataFormat::Format32_32_32:
+            case AmdGpu::DataFormat::Format32_32_32_32:
+                return true;
+            default:
+                return false;
+            }
+        }
+        return false;
+    }
+
     bool IsTiled() const {
         return GetTilingMode() != TilingMode::Display_Linear;
     }
@@ -311,20 +327,20 @@ static_assert(sizeof(Image) == 32); // 256bits
 enum class ClampMode : u64 {
     Wrap = 0,
     Mirror = 1,
-    ClampLastTexel = 2,
+    ClampToLastTexel = 2,
     MirrorOnceLastTexel = 3,
-    ClampHalfBorder = 4,
+    ClampToHalfBorder = 4,
     MirrorOnceHalfBorder = 5,
-    ClampBorder = 6,
+    ClampToBorder = 6,
     MirrorOnceBorder = 7,
 };
 
 enum class AnisoRatio : u64 {
-    One,
-    Two,
-    Four,
-    Eight,
-    Sixteen,
+    x1 = 0, // Renamed for clarity
+    x2 = 1,
+    x4 = 2,
+    x8 = 3,
+    x16 = 4,
 };
 
 enum class DepthCompare : u64 {
@@ -347,8 +363,8 @@ enum class FilterMode : u64 {
 enum class Filter : u64 {
     Point = 0,
     Bilinear = 1,
-    AnisoPoint = 2,
-    AnisoLinear = 3,
+    AnisotropicPoint = 2,
+    AnisotropicLinear = 3,
 };
 
 enum class MipFilter : u64 {

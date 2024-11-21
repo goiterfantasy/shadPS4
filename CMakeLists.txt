@@ -15,6 +15,10 @@ if (NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
 
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+    add_compile_definitions(_DEBUG)
+endif()
+
 project(shadPS4)
 
 # Forcing PIE makes sure that the base address is high enough so that it doesn't clash with the PS4 memory.
@@ -208,30 +212,38 @@ set(GNM_LIB src/core/libraries/gnmdriver/gnmdriver.cpp
             src/core/libraries/gnmdriver/gnm_error.h
 )
 
-set(KERNEL_LIB src/core/libraries/kernel/event_flag/event_flag.cpp
-               src/core/libraries/kernel/event_flag/event_flag.h
-               src/core/libraries/kernel/event_flag/event_flag_obj.cpp
-               src/core/libraries/kernel/event_flag/event_flag_obj.h
+set(KERNEL_LIB src/core/libraries/kernel/threads/condvar.cpp
+               src/core/libraries/kernel/threads/event_flag.cpp
+               src/core/libraries/kernel/threads/exception.cpp
+               src/core/libraries/kernel/threads/exception.h
+               src/core/libraries/kernel/threads/mutex.cpp
+               src/core/libraries/kernel/threads/pthread_attr.cpp
+               src/core/libraries/kernel/threads/pthread_clean.cpp
+               src/core/libraries/kernel/threads/pthread.cpp
+               src/core/libraries/kernel/threads/pthread_spec.cpp
                src/core/libraries/kernel/threads/rwlock.cpp
                src/core/libraries/kernel/threads/semaphore.cpp
-               src/core/libraries/kernel/threads/keys.cpp
-               src/core/libraries/kernel/threads/threads.h
-               src/core/libraries/kernel/cpu_management.cpp
-               src/core/libraries/kernel/cpu_management.h
-               src/core/libraries/kernel/event_queue.cpp
-               src/core/libraries/kernel/event_queue.h
-               src/core/libraries/kernel/event_queues.cpp
-               src/core/libraries/kernel/event_queues.h
+               src/core/libraries/kernel/threads/sleepq.cpp
+               src/core/libraries/kernel/threads/sleepq.h
+               src/core/libraries/kernel/threads/stack.cpp
+               src/core/libraries/kernel/threads/tcb.cpp
+               src/core/libraries/kernel/threads/pthread.h
+               src/core/libraries/kernel/threads/thread_state.cpp
+               src/core/libraries/kernel/threads/thread_state.h
+               src/core/libraries/kernel/process.cpp
+               src/core/libraries/kernel/process.h
+               src/core/libraries/kernel/equeue.cpp
+               src/core/libraries/kernel/equeue.h
                src/core/libraries/kernel/file_system.cpp
                src/core/libraries/kernel/file_system.h
-               src/core/libraries/kernel/libkernel.cpp
-               src/core/libraries/kernel/libkernel.h
-               src/core/libraries/kernel/memory_management.cpp
-               src/core/libraries/kernel/memory_management.h
-               src/core/libraries/kernel/thread_management.cpp
-               src/core/libraries/kernel/thread_management.h
-               src/core/libraries/kernel/time_management.cpp
-               src/core/libraries/kernel/time_management.h
+               src/core/libraries/kernel/kernel.cpp
+               src/core/libraries/kernel/kernel.h
+               src/core/libraries/kernel/memory.cpp
+               src/core/libraries/kernel/memory.h
+               src/core/libraries/kernel/threads.cpp
+               src/core/libraries/kernel/threads.h
+               src/core/libraries/kernel/time.cpp
+               src/core/libraries/kernel/time.h
 )
 
 set(NETWORK_LIBS src/core/libraries/network/http.cpp
@@ -453,7 +465,10 @@ set(COMMON src/common/logging/backend.cpp
            src/common/signal_context.h
            src/common/signal_context.cpp
            src/common/singleton.h
+           src/common/slab_heap.h
            src/common/slot_vector.h
+           src/common/spin_lock.cpp
+           src/common/spin_lock.h
            src/common/string_util.cpp
            src/common/string_util.h
            src/common/thread.cpp
@@ -541,6 +556,8 @@ set(CORE src/core/aerolib/stubs.cpp
          src/core/platform.h
          src/core/signals.cpp
          src/core/signals.h
+         src/core/thread.cpp
+         src/core/thread.h
          src/core/tls.cpp
          src/core/tls.h
          src/core/virtual_memory.cpp
@@ -609,6 +626,7 @@ set(SHADER_RECOMPILER src/shader_recompiler/exception.h
                       src/shader_recompiler/ir/passes/constant_propagation_pass.cpp
                       src/shader_recompiler/ir/passes/dead_code_elimination_pass.cpp
                       src/shader_recompiler/ir/passes/flatten_extended_userdata_pass.cpp
+                      src/shader_recompiler/ir/passes/hull_shader_transform.cpp
                       src/shader_recompiler/ir/passes/identity_removal_pass.cpp
                       src/shader_recompiler/ir/passes/ir_passes.h
                       src/shader_recompiler/ir/passes/lower_shared_mem_to_registers.cpp
@@ -628,6 +646,8 @@ set(SHADER_RECOMPILER src/shader_recompiler/exception.h
                       src/shader_recompiler/ir/opcodes.cpp
                       src/shader_recompiler/ir/opcodes.h
                       src/shader_recompiler/ir/opcodes.inc
+                      src/shader_recompiler/ir/patch.cpp
+                      src/shader_recompiler/ir/patch.h
                       src/shader_recompiler/ir/post_order.cpp
                       src/shader_recompiler/ir/post_order.h
                       src/shader_recompiler/ir/program.cpp
@@ -724,6 +744,8 @@ set(IMGUI src/imgui/imgui_config.h
 
 set(INPUT src/input/controller.cpp
           src/input/controller.h
+          src/input/input_handler.cpp
+          src/input/input_handler.h
 )
 
 set(EMULATOR src/emulator.cpp
@@ -752,6 +774,10 @@ set(QT_GUI src/qt_gui/about_dialog.cpp
            src/qt_gui/cheats_patches.h
            src/qt_gui/main_window_ui.h
            src/qt_gui/main_window.cpp
+           src/qt_gui/kbm_config_dialog.cpp
+           src/qt_gui/kbm_config_dialog.h
+           src/qt_gui/kbm_help_dialog.cpp
+           src/qt_gui/kbm_help_dialog.h
            src/qt_gui/main_window.h
            src/qt_gui/gui_context_menus.h
            src/qt_gui/game_list_utils.h
@@ -921,7 +947,10 @@ if (ENABLE_QT_GUI)
     set_target_properties(shadps4 PROPERTIES
 #       WIN32_EXECUTABLE ON
         MACOSX_BUNDLE ON
-        MACOSX_BUNDLE_ICON_FILE shadPS4.icns)
+        MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/dist/MacOSBundleInfo.plist.in"
+        MACOSX_BUNDLE_ICON_FILE "shadPS4.icns"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "0.4.1"
+        )
 
     set_source_files_properties(src/images/shadPS4.icns PROPERTIES
         MACOSX_PACKAGE_LOCATION Resources)

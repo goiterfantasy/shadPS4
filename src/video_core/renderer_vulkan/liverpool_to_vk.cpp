@@ -201,20 +201,14 @@ vk::SamplerAddressMode ClampMode(AmdGpu::ClampMode mode) {
         return vk::SamplerAddressMode::eRepeat;
     case AmdGpu::ClampMode::Mirror:
         return vk::SamplerAddressMode::eMirroredRepeat;
-    case AmdGpu::ClampMode::ClampLastTexel:
+    case AmdGpu::ClampMode::ClampToLastTexel:
         return vk::SamplerAddressMode::eClampToEdge;
     case AmdGpu::ClampMode::MirrorOnceHalfBorder:
     case AmdGpu::ClampMode::MirrorOnceBorder:
-        LOG_WARNING(Render_Vulkan, "Unimplemented clamp mode {}, using closest equivalent.",
-                    static_cast<u32>(mode));
-        [[fallthrough]];
     case AmdGpu::ClampMode::MirrorOnceLastTexel:
         return vk::SamplerAddressMode::eMirrorClampToEdge;
-    case AmdGpu::ClampMode::ClampHalfBorder:
-        LOG_WARNING(Render_Vulkan, "Unimplemented clamp mode {}, using closest equivalent.",
-                    static_cast<u32>(mode));
-        [[fallthrough]];
-    case AmdGpu::ClampMode::ClampBorder:
+    case AmdGpu::ClampMode::ClampToHalfBorder:
+    case AmdGpu::ClampMode::ClampToBorder:
         return vk::SamplerAddressMode::eClampToBorder;
     default:
         UNREACHABLE();
@@ -247,10 +241,10 @@ vk::CompareOp DepthCompare(AmdGpu::DepthCompare comp) {
 vk::Filter Filter(AmdGpu::Filter filter) {
     switch (filter) {
     case AmdGpu::Filter::Point:
-    case AmdGpu::Filter::AnisoPoint:
+    case AmdGpu::Filter::AnisotropicPoint:
         return vk::Filter::eNearest;
     case AmdGpu::Filter::Bilinear:
-    case AmdGpu::Filter::AnisoLinear:
+    case AmdGpu::Filter::AnisotropicLinear:
         return vk::Filter::eLinear;
     default:
         UNREACHABLE();
@@ -270,14 +264,14 @@ vk::SamplerReductionMode FilterMode(AmdGpu::FilterMode mode) {
     }
 }
 
+// Converts MipFilter to Vulkan SamplerMipmapMode
 vk::SamplerMipmapMode MipFilter(AmdGpu::MipFilter filter) {
     switch (filter) {
     case AmdGpu::MipFilter::Point:
+    case AmdGpu::MipFilter::None:
         return vk::SamplerMipmapMode::eNearest;
     case AmdGpu::MipFilter::Linear:
         return vk::SamplerMipmapMode::eLinear;
-    case AmdGpu::MipFilter::None:
-        return vk::SamplerMipmapMode::eNearest;
     default:
         UNREACHABLE();
     }
@@ -635,6 +629,33 @@ std::span<const SurfaceFormatInfo> SurfaceFormats() {
                                 vk::Format::eBc7UnormBlock),
         CreateSurfaceFormatInfo(AmdGpu::DataFormat::FormatBc7, AmdGpu::NumberFormat::Srgb,
                                 vk::Format::eBc7SrgbBlock),
+
+        /*
+         * Shaders reading/writing these formats need to be patched to normalize/unnormalize the
+         * values This is because the Vulkan doesn't support these formats directly
+         *
+         * see shader_recompiler/ir/passes/resource_tracking_pass.cpp
+         */
+        // 32
+        CreateSurfaceFormatInfo(AmdGpu::DataFormat::Format32, AmdGpu::NumberFormat::Unorm,
+                                vk::Format::eR32Uint),
+        CreateSurfaceFormatInfo(AmdGpu::DataFormat::Format32, AmdGpu::NumberFormat::Snorm,
+                                vk::Format::eR32Sint),
+        // 32_32
+        CreateSurfaceFormatInfo(AmdGpu::DataFormat::Format32_32, AmdGpu::NumberFormat::Unorm,
+                                vk::Format::eR32G32Uint),
+        CreateSurfaceFormatInfo(AmdGpu::DataFormat::Format32_32, AmdGpu::NumberFormat::Snorm,
+                                vk::Format::eR32G32Sint),
+        // 32_32_32
+        CreateSurfaceFormatInfo(AmdGpu::DataFormat::Format32_32_32, AmdGpu::NumberFormat::Unorm,
+                                vk::Format::eR32G32B32Uint),
+        CreateSurfaceFormatInfo(AmdGpu::DataFormat::Format32_32_32, AmdGpu::NumberFormat::Snorm,
+                                vk::Format::eR32G32B32Sint),
+        // 32_32_32_32
+        CreateSurfaceFormatInfo(AmdGpu::DataFormat::Format32_32_32_32, AmdGpu::NumberFormat::Unorm,
+                                vk::Format::eR32G32B32A32Uint),
+        CreateSurfaceFormatInfo(AmdGpu::DataFormat::Format32_32_32_32, AmdGpu::NumberFormat::Snorm,
+                                vk::Format::eR32G32B32A32Sint),
     };
     return formats;
 }

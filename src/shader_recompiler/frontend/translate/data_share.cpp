@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright 2024 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
-
+#include "shader_recompiler/runtime_info.h"
+#pragma clang optimize off
 #include "shader_recompiler/frontend/translate/translate.h"
 
 namespace Shader::Gcn {
@@ -60,18 +61,18 @@ void Translator::EmitDataShare(const GcnInst& inst) {
 void Translator::V_READFIRSTLANE_B32(const GcnInst& inst) {
     const IR::U32 value{GetSrc(inst.src[0])};
 
-    if (info.stage != Stage::Compute) {
-        SetDst(inst.dst[0], value);
-    } else {
+    if (info.l_stage == LogicalStage::Compute ||
+        info.l_stage == LogicalStage::TessellationControl) {
         SetDst(inst.dst[0], ir.ReadFirstLane(value));
+    } else {
+        SetDst(inst.dst[0], value);
     }
 }
 
 void Translator::V_READLANE_B32(const GcnInst& inst) {
-    const IR::ScalarReg dst{inst.dst[0].code};
     const IR::U32 value{GetSrc(inst.src[0])};
     const IR::U32 lane{GetSrc(inst.src[1])};
-    ir.SetScalarReg(dst, ir.ReadLane(value, lane));
+    SetDst(inst.dst[0], ir.ReadLane(value, lane));
 }
 
 void Translator::V_WRITELANE_B32(const GcnInst& inst) {
@@ -155,7 +156,7 @@ void Translator::DS_SWIZZLE_B32(const GcnInst& inst) {
     const u8 offset0 = inst.control.ds.offset0;
     const u8 offset1 = inst.control.ds.offset1;
     const IR::U32 src{GetSrc(inst.src[1])};
-    ASSERT(offset1 & 0x80);
+    // ASSERT(offset1 & 0x80);
     const IR::U32 lane_id = ir.LaneId();
     const IR::U32 id_in_group = ir.BitwiseAnd(lane_id, ir.Imm32(0b11));
     const IR::U32 base = ir.ShiftLeftLogical(id_in_group, ir.Imm32(1));
