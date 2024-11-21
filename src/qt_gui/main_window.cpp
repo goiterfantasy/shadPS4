@@ -96,6 +96,32 @@ bool MainWindow::Init() {
     return true;
 }
 
+// Initialize shared memory for game state
+QSharedMemory sharedMemory("GameStateKey");
+
+// Write game state in child process
+void writeGameState() {
+    if (!sharedMemory.create(1024)) {
+        qDebug() << "Failed to create shared memory:" << sharedMemory.errorString();
+        return;
+    }
+    char* to = static_cast<char*>(sharedMemory.data());
+    const char* from = "Game State Data";
+    memcpy(to, from, qstrlen(from));
+    qDebug() << "Game state written to shared memory.";
+}
+
+// Read game state in the main process
+void readGameState() {
+    if (!sharedMemory.attach()) {
+        qDebug() << "Failed to attach to shared memory:" << sharedMemory.errorString();
+        return;
+    }
+    char* from = static_cast<char*>(sharedMemory.data());
+    qDebug() << "Game state read from shared memory:" << QString::fromLatin1(from);
+    sharedMemory.detach();
+}
+
 void MainWindow::CreateActions() {
     // create action group for icon size
     m_icon_size_act_group = new QActionGroup(this);
@@ -597,8 +623,39 @@ void MainWindow::StopGame() {
 
 void MainWindow::RestartGame() {
     if (isGameRunning) {
-        StopGame(); 
-        StartGame();
+        qDebug() << "Preparing to restart the application...";
+
+        // Capture the current application path and arguments
+        QString program = QCoreApplication::applicationFilePath();
+        QStringList arguments = QCoreApplication::arguments();
+
+        // Add the "--resume-child" flag to indicate the new instance should resume from the child
+        arguments << "--resume-child";
+
+        // Start a child process to hold the game state
+        QProcess* childProcess = new QProcess(this);
+        QStringList childArguments;
+        childArguments << "--child-process";
+
+        qDebug() << "Starting child process to carry the game state...";
+        if (!childProcess->startDetached(program, childArguments)) {
+            qDebug() << "Failed to start the child process.";
+            return;
+        }
+        qDebug() << "Child process started successfully.";
+
+        // Stop the current game
+        StopGame();
+        qDebug() << "Stopping the game...";
+
+        // Relaunch the main application
+        qDebug() << "Restarting the application...";
+        if (QProcess::startDetached(program, arguments)) {
+            qDebug() << "Application restarted successfully. Exiting current instance...";
+
+        } else {
+            qDebug() << "Failed to restart the application.";
+        }
     } else {
         qDebug() << "No game is currently running to restart.";
     }
