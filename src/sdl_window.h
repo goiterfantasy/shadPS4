@@ -3,8 +3,8 @@
 
 #pragma once
 
-#include <string>
 #include "common/types.h"
+#include "string"
 
 struct SDL_Window;
 struct SDL_Gamepad;
@@ -71,9 +71,9 @@ public:
     void initTimers();
 
 private:
-    void onResize();
-    void onKeyPress(const SDL_Event* event);
-    void onGamepadEvent(const SDL_Event* event);
+    void OnResize();
+    void OnKeyboardMouseInput(const SDL_Event* event);
+    void OnGamepadEvent(const SDL_Event* event);
 
     int sdlGamepadToOrbisButton(u8 button);
 
