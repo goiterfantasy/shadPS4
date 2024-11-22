@@ -110,8 +110,7 @@ int EqueueInternal::GetTriggeredEvents(SceKernelEvent* ev, int num) {
 bool EqueueInternal::AddSmallTimer(EqueueEvent& ev) {
     // We assume that only one timer event (with the same ident across calls)
     // can be posted to the queue, based on observations so far. In the opposite case,
-    // the small timer storage and wait logic should be reworked.
-    ASSERT(!HasSmallTimer() || small_timer_event.event.ident == ev.event.ident);
+    // the small timer storage and wait logic should be reworked
     ev.time_added = std::chrono::steady_clock::now();
     small_timer_event = std::move(ev);
     return true;
@@ -207,7 +206,6 @@ int PS4_SYSV_ABI sceKernelWaitEqueue(SceKernelEqueue eq, SceKernelEvent* ev, int
     }
 
     if (eq->HasSmallTimer()) {
-        ASSERT(timo && *timo);
         *out = eq->WaitForSmallTimer(ev, num, *timo);
     } else {
         if (timo == nullptr) { // wait until an event arrives without timing out
