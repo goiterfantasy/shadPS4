@@ -204,25 +204,9 @@ int PS4_SYSV_ABI sceKernelWaitEqueue(SceKernelEqueue eq, SceKernelEvent* ev, int
         return ORBIS_KERNEL_ERROR_EINVAL;
     }
 
-    if (eq->HasSmallTimer()) {
-        ASSERT(timo && *timo);
-        *out = eq->WaitForSmallTimer(ev, num, *timo);
-    } else {
-        if (timo == nullptr) { // wait until an event arrives without timing out
-            *out = eq->WaitForEvents(ev, num, 0);
-        }
 
-        if (timo != nullptr) {
-            // Only events that have already arrived at the time of this function call can be
-            // received
-            if (*timo == 0) {
-                *out = eq->GetTriggeredEvents(ev, num);
-            } else {
-                // Wait until an event arrives with timing out
-                *out = eq->WaitForEvents(ev, num, *timo);
-            }
-        }
-    }
+    std::chrono::steady_clock::now();
+    *out = eq->WaitForSmallTimer(ev, num, *timo);
 
     if (*out == 0) {
         return ORBIS_KERNEL_ERROR_ETIMEDOUT;
