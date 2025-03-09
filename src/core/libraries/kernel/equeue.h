@@ -110,6 +110,7 @@ struct EqueueEvent {
     }
 
 private:
+    bool m_active = true;
     bool is_triggered = false;
 };
 
