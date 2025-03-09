@@ -43,36 +43,35 @@ bool EqueueInternal::RemoveEvent(u64 id, s16 filter) {
 
 int EqueueInternal::WaitForEvents(SceKernelEvent* ev, int num, u32 micros) {
     int count = 0;
-
     const auto predicate = [&] {
         count = GetTriggeredEvents(ev, num);
         return count > 0;
     };
-
+    std::unique_lock lock{m_mutex};
     if (micros == 0) {
-        std::unique_lock lock{m_mutex};
         m_cond.wait(lock, predicate);
     } else {
-        std::unique_lock lock{m_mutex};
-        m_cond.wait_for(lock, std::chrono::microseconds(micros), predicate);
-    }
-
-    if (HasSmallTimer()) {
-        if (count > 0) {
-            const auto time_waited = std::chrono::duration_cast<std::chrono::microseconds>(
-                                         std::chrono::steady_clock::now() - m_events[0].time_added)
-                                         .count();
-            count = WaitForSmallTimer(ev, num, std::max(0l, long(micros - time_waited)));
+        auto now = std::chrono::steady_clock::now();
+        std::chrono::microseconds min_timeout{micros};
+        // Adjust timeout for timer events
+        for (const auto& event : m_events) {
+            if (event.event.filter == SceKernelEvent::Filter::HrTimer && event.event.data > 0) {
+                auto time_left = std::chrono::duration_cast<std::chrono::microseconds>(
+                    event.time_added + std::chrono::microseconds{event.event.data} - now);
+                if (time_left > std::chrono::microseconds{0}) {
+                    min_timeout = std::min(min_timeout, time_left);
+                }
+            }
         }
-        small_timer_event.event.data = 0;
+        m_cond.wait_for(lock, min_timeout, predicate);
+        count = GetTriggeredEvents(ev, num); // Recheck after waiting
     }
-
-    if (ev->flags & SceKernelEvent::Flags::OneShot) {
+    lock.unlock();
+    if (count > 0 && ev[0].flags & SceKernelEvent::Flags::OneShot) {
         for (auto ev_id = 0u; ev_id < count; ++ev_id) {
-            RemoveEvent(ev->ident, ev->filter);
+            RemoveEvent(ev[ev_id].ident, ev[ev_id].filter);
         }
     }
-
     return count;
 }
 
@@ -113,16 +112,6 @@ int EqueueInternal::GetTriggeredEvents(SceKernelEvent* ev, int num) {
     }
 
     return count;
-}
-
-bool EqueueInternal::AddSmallTimer(EqueueEvent& ev) {
-    // We assume that only one timer event (with the same ident across calls)
-    // can be posted to the queue, based on observations so far. In the opposite case,
-    // the small timer storage and wait logic should be reworked.
-    ASSERT(!HasSmallTimer() || small_timer_event.event.ident == ev.event.ident);
-    ev.time_added = std::chrono::steady_clock::now();
-    small_timer_event = std::move(ev);
-    return true;
 }
 
 extern boost::asio::io_context io_context;
@@ -173,47 +162,19 @@ int PS4_SYSV_ABI sceKernelDeleteEqueue(SceKernelEqueue eq) {
 
 int PS4_SYSV_ABI sceKernelWaitEqueue(SceKernelEqueue eq, SceKernelEvent* ev, int num, int* out,
                                      SceKernelUseconds* timo) {
-    HLE_TRACE;
-    TRACE_HINT(eq->GetName());
     LOG_TRACE(Kernel_Event, "equeue = {} num = {}", eq->GetName(), num);
+    if (eq == nullptr) return ORBIS_KERNEL_ERROR_EBADF;
+    if (ev == nullptr) return ORBIS_KERNEL_ERROR_EFAULT;
+    if (num < 1) return ORBIS_KERNEL_ERROR_EINVAL;
 
-    if (eq == nullptr) {
-        return ORBIS_KERNEL_ERROR_EBADF;
-    }
-
-    if (ev == nullptr) {
-        return ORBIS_KERNEL_ERROR_EFAULT;
-    }
-
-    if (num < 1) {
-        return ORBIS_KERNEL_ERROR_EINVAL;
-    }
-
-    if (eq->HasSmallTimer()) {
-        ASSERT(timo && *timo);
-        *out = eq->WaitForSmallTimer(ev, num, *timo);
+    if (timo == nullptr) {
+        *out = eq->WaitForEvents(ev, num, 0);
+    } else if (*timo == 0) {
+        *out = eq->GetTriggeredEvents(ev, num);
     } else {
-        if (timo == nullptr) { // wait until an event arrives without timing out
-            *out = eq->WaitForEvents(ev, num, 0);
-        }
-
-        if (timo != nullptr) {
-            // Only events that have already arrived at the time of this function call can be
-            // received
-            if (*timo == 0) {
-                *out = eq->GetTriggeredEvents(ev, num);
-            } else {
-                // Wait until an event arrives with timing out
-                *out = eq->WaitForEvents(ev, num, *timo);
-            }
-        }
+        *out = eq->WaitForEvents(ev, num, *timo);
     }
-
-    if (*out == 0) {
-        return ORBIS_KERNEL_ERROR_ETIMEDOUT;
-    }
-
-    return ORBIS_OK;
+    return (*out == 0 && timo) ? ORBIS_KERNEL_ERROR_ETIMEDOUT : ORBIS_OK;
 }
 
 s32 PS4_SYSV_ABI sceKernelAddHRTimerEvent(SceKernelEqueue eq, int id, timespec* ts, void* udata) {
@@ -264,13 +225,7 @@ int PS4_SYSV_ABI sceKernelDeleteHRTimerEvent(SceKernelEqueue eq, int id) {
     if (eq == nullptr) {
         return ORBIS_KERNEL_ERROR_EBADF;
     }
-
-    if (eq->HasSmallTimer()) {
-        return eq->RemoveSmallTimer(id) ? ORBIS_OK : ORBIS_KERNEL_ERROR_ENOENT;
-    } else {
-        return eq->RemoveEvent(id, SceKernelEvent::Filter::HrTimer) ? ORBIS_OK
-                                                                    : ORBIS_KERNEL_ERROR_ENOENT;
-    }
+    return eq->RemoveEvent(id, SceKernelEvent::Filter::HrTimer) ? ORBIS_OK : ORBIS_KERNEL_ERROR_ENOENT;
 }
 
 int PS4_SYSV_ABI sceKernelAddUserEvent(SceKernelEqueue eq, int id) {
