@@ -16,16 +16,14 @@ namespace Libraries::Kernel {
 
 bool EqueueInternal::AddEvent(EqueueEvent& event) {
     std::scoped_lock lock{m_mutex};
-
     event.time_added = std::chrono::steady_clock::now();
-
     const auto& it = std::ranges::find(m_events, event);
     if (it != m_events.cend()) {
         *it = std::move(event);
     } else {
         m_events.emplace_back(std::move(event));
     }
-
+    m_cond.notify_one(); // Notify in case waiting threads need to check timers
     return true;
 }
 
@@ -125,31 +123,6 @@ bool EqueueInternal::AddSmallTimer(EqueueEvent& ev) {
     ev.time_added = std::chrono::steady_clock::now();
     small_timer_event = std::move(ev);
     return true;
-}
-
-int EqueueInternal::WaitForSmallTimer(SceKernelEvent* ev, int num, u32 micros) {
-    int count{};
-
-    ASSERT(num == 1);
-
-    auto curr_clock = std::chrono::steady_clock::now();
-    const auto wait_end_us = curr_clock + std::chrono::microseconds{micros};
-
-    do {
-        curr_clock = std::chrono::steady_clock::now();
-        {
-            std::scoped_lock lock{m_mutex};
-            if ((curr_clock - small_timer_event.time_added) >
-                std::chrono::microseconds{small_timer_event.event.data}) {
-                ev[count++] = small_timer_event.event;
-                small_timer_event.event.data = 0;
-                break;
-            }
-        }
-        std::this_thread::yield();
-    } while (curr_clock < wait_end_us);
-
-    return count;
 }
 
 extern boost::asio::io_context io_context;
