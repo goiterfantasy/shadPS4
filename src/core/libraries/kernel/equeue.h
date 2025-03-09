@@ -110,7 +110,6 @@ struct EqueueEvent {
     }
 
 private:
-    bool m_active = true;
     bool is_triggered = false;
 };
 
@@ -127,18 +126,7 @@ public:
     int WaitForEvents(SceKernelEvent* ev, int num, u32 micros);
     bool TriggerEvent(u64 ident, s16 filter, void* trigger_data);
     int GetTriggeredEvents(SceKernelEvent* ev, int num);
-
-    bool AddSmallTimer(EqueueEvent& event);
-    bool HasSmallTimer() const {
-        return small_timer_event.event.data != 0;
-    }
-    bool RemoveSmallTimer(u64 id) {
-        if (HasSmallTimer() && small_timer_event.event.ident == id) {
-            small_timer_event = {};
-            return true;
-        }
-        return false;
-    }
+    bool AddSmallTimer(EqueueEvent& ev) { return AddEvent(ev); } // Redirect to AddEvent
 
     int WaitForSmallTimer(SceKernelEvent* ev, int num, u32 micros);
 
